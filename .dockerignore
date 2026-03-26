@@ -1,0 +1,15 @@
+**/.dockerignore
+**/.git
+**/.gitignore
+**/.project
+**/.settings
+**/.toolstarget
+**/.vs
+**/.vscode
+**/.idea
+**/bin
+**/obj
+**/.env
+**/.env.development
+**/node_modules
+**/wwwroot/lib

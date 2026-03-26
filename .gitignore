@@ -1,0 +1,28 @@
+# Environment Files
+.env
+.env.local
+.env.*.local
+
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+[Bb]in/
+[Oo]bj/
+.vs/
+idea/
+*.sln.iml
+*.nupkg
+*/packages/
+*.log
+*.tmp
+node_modules/
+ScaffoldingReadMe.txt
+*.pdb
+*.cachefile

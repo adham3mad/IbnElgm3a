@@ -1,0 +1,122 @@
+using IbnElgm3a.Enums;
+using System;
+using System.ComponentModel.DataAnnotations;
+
+namespace IbnElgm3a.Model.Data
+{
+    public class Complaint : BaseEntity
+    {
+        [Required]
+        [StringLength(20)]
+        public string TicketNumber { get; set; } = string.Empty;
+
+        public string StudentId { get; set; } = string.Empty;
+        public virtual User? Student { get; set; }
+
+        public ComplaintType Type { get; set; }
+
+        [Required]
+        [StringLength(255)]
+        public string Title { get; set; } = string.Empty;
+        
+        public string Description { get; set; } = string.Empty;
+
+        public ComplaintStatus Status { get; set; } = ComplaintStatus.Open;
+
+        public string? AssignedToId { get; set; }
+        public virtual User? AssignedTo { get; set; }
+
+        public DateTimeOffset? LastResponseAt { get; set; }
+
+        public string? InternalNote { get; set; }
+        public string? Response { get; set; }
+    }
+
+    public class SubAdmin : BaseEntity
+    {
+        public string UserId { get; set; } = string.Empty;
+        public virtual User? User { get; set; }
+
+        public SubAdminScopeType ScopeType { get; set; }
+        public string? ScopeId { get; set; }
+        public string? ScopeLabel { get; set; }
+
+        public bool IsActive { get; set; } = true;
+        public DateTimeOffset? LastActiveAt { get; set; }
+    }
+
+    public class Announcement : BaseEntity
+    {
+        [Required]
+        [StringLength(120)]
+        public string Title { get; set; } = string.Empty;
+
+        [Required]
+        public string Body { get; set; } = string.Empty;
+
+        public AnnouncementTargetType TargetType { get; set; }
+        
+        [StringLength(100)]
+        public string? TargetLabel { get; set; }
+
+        public string? TargetId { get; set; }
+        
+        [StringLength(20)]
+        public string? TargetRole { get; set; } // student, instructor, admin
+
+        public int SentCount { get; set; }
+        public int ReadCount { get; set; }
+
+        public string CreatedById { get; set; } = string.Empty;
+        public virtual User? CreatedBy { get; set; }
+
+        public AnnouncementPriority Priority { get; set; } = AnnouncementPriority.Normal;
+    }
+
+    public class CalendarEvent : BaseEntity
+    {
+        [Required]
+        [StringLength(120)]
+        public string Title { get; set; } = string.Empty;
+
+        public DateTimeOffset Date { get; set; }
+        public DateTimeOffset? EndDate { get; set; }
+
+        public CalendarEventType Type { get; set; }
+
+        public string? Description { get; set; }
+
+        [StringLength(50)]
+        public string SemesterId { get; set; } = string.Empty;
+
+        public bool IsPublic { get; set; } = true;
+
+        [StringLength(20)]
+        public string ColorSeed { get; set; } = "blue";
+    }
+
+    public class UserDevice : BaseEntity
+    {
+        public string UserId { get; set; } = string.Empty;
+        public virtual User? User { get; set; }
+
+        [Required]
+        [StringLength(100)]
+        public string DeviceId { get; set; } = string.Empty;
+
+        [StringLength(255)]
+        public string? FcmToken { get; set; }
+
+        [StringLength(500)]
+        public string? BiometricPublicKey { get; set; }
+
+        [StringLength(100)]
+        public string? DeviceName { get; set; }
+
+        [StringLength(20)]
+        public string? DeviceOs { get; set; }
+        
+        public bool IsActive { get; set; } = true;
+        public DateTimeOffset LastUsedAt { get; set; } = DateTimeOffset.UtcNow;
+    }
+}

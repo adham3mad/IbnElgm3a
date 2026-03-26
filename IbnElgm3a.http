@@ -1,0 +1,6 @@
+@IbnElgm3a_HostAddress = http://localhost:5195
+
+GET {{IbnElgm3a_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
