@@ -15,10 +15,10 @@ namespace IbnElgm3a.DTOs.RolesPermissions
         [JsonPropertyName("name_ar")]
         public string? ArName { get; set; }
 
-        [JsonPropertyName("code")]
-        public PermissionEnum Code { get; set; }
-
         [JsonPropertyName("description")]
         public string? Description { get; set; }
+
+        [JsonPropertyName("description_ar")]
+        public string? ArDescription { get; set; }
     }
 }

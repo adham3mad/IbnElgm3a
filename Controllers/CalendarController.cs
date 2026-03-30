@@ -29,7 +29,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_CalendarRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Calendar_Read)]
         public async Task<IActionResult> GetEvents([FromQuery] string? semester_id = null, [FromQuery] string? start_date = null, [FromQuery] string? end_date = null)
         {
             var query = _context.CalendarEvents.AsQueryable();
@@ -66,7 +66,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.Dashboard_CalendarCreate)]
+        [RequirePermission(PermissionEnum.Dashboard_Calendar_Create)]
         public async Task<IActionResult> CreateEvent([FromBody] CreateCalendarEventRequestDto request)
         {
             if (!string.IsNullOrEmpty(request.SemesterId))
@@ -94,7 +94,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{event_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_CalendarUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Calendar_Update)]
         public async Task<IActionResult> UpdateEvent(string event_id, [FromBody] UpdateCalendarEventRequestDto request)
         {
             var e = await _context.CalendarEvents.FindAsync(event_id);
@@ -118,7 +118,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{event_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_CalendarDelete)]
+        [RequirePermission(PermissionEnum.Dashboard_Calendar_Delete)]
         public async Task<IActionResult> DeleteEvent(string event_id)
         {
             var calendarEvent = await _context.CalendarEvents.FindAsync(event_id);

@@ -8,11 +8,10 @@ namespace IbnElgm3a.DTOs.Auth
     public class LoginRequestDto
     {
         [Required]
-        [JsonPropertyName("email")]
-        public string Email { get; set; } = string.Empty;
+        [JsonPropertyName("national_id")]
+        public string NationalId { get; set; } = string.Empty;
 
         [Required]
-        [MinLength(8)]
         [JsonPropertyName("password")]
         public string Password { get; set; } = string.Empty;
 

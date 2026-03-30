@@ -31,7 +31,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_SettingsRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Semesters_Read)]
         public async Task<IActionResult> GetSemesters()
         {
             var semesters = await _context.Semesters
@@ -48,7 +48,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_SettingsRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Semesters_Read)]
         public async Task<IActionResult> GetSemesterById(string id)
         {
             var s = await _context.Semesters.FindAsync(id);
@@ -64,7 +64,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.Dashboard_SettingsUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Semesters_Create)]
         public async Task<IActionResult> CreateSemester([FromBody] CreateSemesterRequestDto request)
         {
             var semester = new Semester
@@ -84,7 +84,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_SettingsUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Semesters_Update)]
         public async Task<IActionResult> UpdateSemester(string id, [FromBody] UpdateSemesterRequestDto request)
         {
             var s = await _context.Semesters.FindAsync(id);
@@ -100,7 +100,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_SettingsUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Semesters_Delete)]
         public async Task<IActionResult> DeleteSemester(string id)
         {
             var s = await _context.Semesters.FindAsync(id);

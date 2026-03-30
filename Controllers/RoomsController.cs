@@ -27,7 +27,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_StructureRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Rooms_Read)]
         public async Task<IActionResult> GetRooms()
         {
             var rooms = await _context.Rooms
@@ -42,7 +42,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_StructureRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Rooms_Read)]
         public async Task<IActionResult> GetRoomById(string id)
         {
             var r = await _context.Rooms.FindAsync(id);
@@ -57,7 +57,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.Dashboard_StructureCreate)]
+        [RequirePermission(PermissionEnum.Dashboard_Rooms_Create)]
         public async Task<IActionResult> CreateRoom([FromBody] CreateRoomRequestDto request)
         {
             var room = new Room
@@ -76,7 +76,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_StructureUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Rooms_Update)]
         public async Task<IActionResult> UpdateRoom(string id, [FromBody] UpdateRoomRequestDto request)
         {
             var r = await _context.Rooms.FindAsync(id);
@@ -91,7 +91,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_StructureDelete)]
+        [RequirePermission(PermissionEnum.Dashboard_Rooms_Delete)]
         public async Task<IActionResult> DeleteRoom(string id)
         {
             var r = await _context.Rooms.FindAsync(id);

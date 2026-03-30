@@ -31,7 +31,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Sections_Read)]
         public async Task<IActionResult> GetSections([FromQuery] string? course_id = null)
         {
             var query = _context.Sections.AsQueryable();
@@ -52,7 +52,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Sections_Read)]
         public async Task<IActionResult> GetSectionById(string id)
         {
             var s = await _context.Sections.Include(sec => sec.Enrollments).FirstOrDefaultAsync(sec => sec.Id == id);
@@ -70,7 +70,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Sections_Create)]
         public async Task<IActionResult> CreateSection([FromBody] CreateSectionRequestDto request)
         {
             var section = new Section
@@ -91,7 +91,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Sections_Update)]
         public async Task<IActionResult> UpdateSection(string id, [FromBody] UpdateSectionRequestDto request)
         {
             var s = await _context.Sections.FindAsync(id);
@@ -107,7 +107,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Sections_Delete)]
         public async Task<IActionResult> DeleteSection(string id)
         {
             var s = await _context.Sections.FindAsync(id);

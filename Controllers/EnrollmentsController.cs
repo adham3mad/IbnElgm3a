@@ -31,7 +31,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Enrollments_Read)]
         public async Task<IActionResult> GetEnrollments([FromQuery] string? student_id = null, [FromQuery] string? section_id = null)
         {
             var query = _context.Enrollments.AsQueryable();
@@ -52,7 +52,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Enrollments_Read)]
         public async Task<IActionResult> GetEnrollmentById(string id)
         {
             var e = await _context.Enrollments.FindAsync(id);
@@ -69,7 +69,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Enrollments_Create)]
         public async Task<IActionResult> CreateEnrollment([FromBody] CreateEnrollmentRequestDto request)
         {
             var section = await _context.Sections.Include(s => s.Enrollments).FirstOrDefaultAsync(s => s.Id == request.SectionId);
@@ -99,7 +99,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Enrollments_Update)]
         public async Task<IActionResult> UpdateEnrollment(string id, [FromBody] UpdateEnrollmentRequestDto request)
         {
             var e = await _context.Enrollments.FindAsync(id);
@@ -113,7 +113,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Enrollments_Delete)]
         public async Task<IActionResult> DeleteEnrollment(string id)
         {
             var e = await _context.Enrollments.FindAsync(id);

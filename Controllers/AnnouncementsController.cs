@@ -28,7 +28,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_AnnouncementsRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Announcements_Read)]
         public async Task<IActionResult> GetAnnouncements(
             [FromQuery] AnnouncementTargetType? target = null,
             [FromQuery] AnnouncementPriority? priority = null,
@@ -71,7 +71,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.Dashboard_AnnouncementsCreate)]
+        [RequirePermission(PermissionEnum.Dashboard_Announcements_Create)]
         public async Task<IActionResult> CreateAnnouncement([FromBody] CreateAnnouncementRequestDto request)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -99,7 +99,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{announcement_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_AnnouncementsUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Announcements_Update)]
         public async Task<IActionResult> UpdateAnnouncement(string announcement_id, [FromBody] UpdateAnnouncementRequestDto request)
         {
             var a = await _context.Announcements.FindAsync(announcement_id);
@@ -117,7 +117,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{announcement_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_AnnouncementsDelete)]
+        [RequirePermission(PermissionEnum.Dashboard_Announcements_Delete)]
         public async Task<IActionResult> DeleteAnnouncement(string announcement_id)
         {
             var a = await _context.Announcements.FindAsync(announcement_id);

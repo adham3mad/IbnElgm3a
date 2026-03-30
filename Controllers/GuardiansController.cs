@@ -28,7 +28,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_UsersRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Guardians_Read)]
         public async Task<IActionResult> GetGuardians([FromQuery] string? q = null)
         {
             var query = _context.Guardians.AsQueryable();
@@ -54,7 +54,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_UsersRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Guardians_Read)]
         public async Task<IActionResult> GetGuardianById(string id)
         {
             var g = await _context.Guardians.FindAsync(id);
@@ -73,7 +73,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.Dashboard_StudentsCreate)]
+        [RequirePermission(PermissionEnum.Dashboard_Guardians_Read)]
         public async Task<IActionResult> CreateGuardian([FromBody] CreateGuardianRequestDto request)
         {
             var nidExists = await _context.Guardians.AnyAsync(g => g.NationalId == request.NationalId);
@@ -97,7 +97,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_StudentsUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Guardians_Update)]
         public async Task<IActionResult> UpdateGuardian(string id, [FromBody] UpdateGuardianRequestDto request)
         {
             var g = await _context.Guardians.FindAsync(id);
@@ -120,7 +120,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_UsersDelete)]
+        [RequirePermission(PermissionEnum.Dashboard_Guardians_Delete)]
         public async Task<IActionResult> DeleteGuardian(string id)
         {
             var g = await _context.Guardians.FindAsync(id);

@@ -1,4 +1,5 @@
 using IbnElgm3a.Enums;
+using IbnElgm3a.Models.Data;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
@@ -14,6 +15,40 @@ namespace IbnElgm3a.DTOs.Auth
 
         [JsonPropertyName("expires_in")]
         public DateTime ExpiresIn { get; set; }
+    }
+
+    public class PermissionDto
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("name_ar")]
+        public string? NameAr { get; set; }
+
+    }
+
+    public class FeatureDto
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("name_ar")]
+        public string? NameAr { get; set; }
+
+        [JsonPropertyName("permissions")]
+        public List<PermissionDto> Permissions { get; set; } = new();
+    }
+
+    public class RoleDto
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("name_ar")]
+        public string? NameAr { get; set; }
+
+        [JsonPropertyName("features")]
+        public List<FeatureDto> Features { get; set; } = new();
     }
 
     public class AuthUserDto
@@ -49,9 +84,10 @@ namespace IbnElgm3a.DTOs.Auth
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? StudentId { get; set; }
 
-        [JsonPropertyName("permissions")]
+
+        [JsonPropertyName("role_details")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public List<string>? Permissions { get; set; }
+        public RoleDto? RoleDetails { get; set; }
 
         [JsonPropertyName("must_change_pw")]
         public bool MustChangePw { get; set; }

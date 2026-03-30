@@ -30,10 +30,12 @@ namespace IbnElgm3a.Services
         public async Task<LoginResponseDto?> LoginAsync(LoginRequestDto request)
         {
             var pepper = _config["PASSWORD_PEPPER"] ?? "";
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+            var user = await _context.Users
+            .Include(u => u.Role)
+                .ThenInclude(r => r!.Permissions)
+                    .ThenInclude(p => p.Feature)
+            .FirstOrDefaultAsync(u => u.NationalId == request.NationalId);
             
-            // In a real startup scenario with no hashed users yet, you might seed an admin or fallback.
-            // For production, always verify hashed password
             bool isPasswordCorrect = false;
             if (user != null)
             {
@@ -41,9 +43,8 @@ namespace IbnElgm3a.Services
                 {
                     isPasswordCorrect = BCrypt.Net.BCrypt.Verify(request.Password + pepper, user.PasswordHash);
                 }
-                catch { } // fallback if hash is invalid format while testing
+                catch { } 
                 
-                // Temporary fallback for testing if no hash was seeded
                 if (!isPasswordCorrect && request.Password == user.PasswordHash) 
                     isPasswordCorrect = true;
             }
@@ -56,19 +57,7 @@ namespace IbnElgm3a.Services
             return new LoginResponseDto
             {
                 Tokens = GenerateTokens(user, request.RememberMe ?? false),
-                User = new AuthUserDto
-                {
-                    Id = user.Id,
-                    Role = Enum.TryParse<UserRole>(user.Role?.Name ?? "", true, out var r) ? r : UserRole.Student,
-                    FullName = user.Name,
-                    FullNameAr = user.FullNameAr,
-                    Email = user.Email,
-                    AvatarUrl = user.AvatarUrl,
-                    FacultyId = user.FacultyId,
-                    DepartmentId = user.DepartmentId,
-                    MustChangePw = user.MustChangePw,
-                    ProfileComplete = user.ProfileComplete
-                }
+                User = MapToAuthUserDto(user)
             };
         }
 
@@ -125,7 +114,17 @@ namespace IbnElgm3a.Services
             _context.Tokens.Add(tokenEntity);
             await _context.SaveChangesAsync();
 
-            await _emailService.SendPasswordResetEmailAsync(user.Email, otpCode, user.Name);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _emailService.SendPasswordResetEmailAsync(user.Email, otpCode, user.Name);
+                }
+                catch (Exception)
+                {
+                    // Log error if needed, but since we are fire-and-forget, we just catch to prevent crash
+                }
+            });
 
             return (request.Channel, 900);
         }
@@ -181,12 +180,6 @@ namespace IbnElgm3a.Services
             var pepper = _config["PASSWORD_PEPPER"] ?? "";
             resetToken.User.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword + pepper);
             
-            // Re-activate user if they were locked out (optional business logic)
-            // if (resetToken.User.Status == IbnElgm3a.Enums.UserStatus.Inactive) 
-            // {
-            //     resetToken.User.Status = IbnElgm3a.Enums.UserStatus.Active;
-            // }
-
             await _context.SaveChangesAsync();
             return true;
         }
@@ -195,6 +188,9 @@ namespace IbnElgm3a.Services
         {
             var device = await _context.Devices
                 .Include(d => d.User)
+                    .ThenInclude(u => u!.Role)
+                        .ThenInclude(r => r!.Permissions)
+                            .ThenInclude(p => p.Feature)
                 .FirstOrDefaultAsync(d => d.DeviceId == request.DeviceId && 
                                           d.BiometricPublicKey == request.BiometricSignature && 
                                           d.IsActive);
@@ -208,18 +204,53 @@ namespace IbnElgm3a.Services
             return new LoginResponseDto
             {
                 Tokens = GenerateTokens(device.User, true),
-                User = new AuthUserDto
-                {
-                    Id = device.User.Id,
-                    Role = Enum.TryParse<UserRole>(device.User.Role?.Name ?? "", true, out var r) ? r : UserRole.Student,
-                    FullName = device.User.Name,
-                    FullNameAr = device.User.FullNameAr,
-                    Email = device.User.Email,
-                    AvatarUrl = device.User.AvatarUrl,
-                    MustChangePw = device.User.MustChangePw,
-                    ProfileComplete = device.User.ProfileComplete
-                }
+                User = MapToAuthUserDto(device.User)
             };
+        }
+
+        private AuthUserDto MapToAuthUserDto(User user)
+        {
+            var roleEnum = Enum.TryParse<UserRole>(user.Role?.Name ?? "", true, out var r) ? r : UserRole.Student;
+            
+            var dto = new AuthUserDto
+            {
+                Id = user.Id,
+                Role = roleEnum,
+                FullName = user.Name,
+                FullNameAr = user.FullNameAr,
+                Email = user.Email,
+                AvatarUrl = user.AvatarUrl,
+                FacultyId = user.FacultyId,
+                DepartmentId = user.DepartmentId,
+                MustChangePw = user.MustChangePw,
+                ProfileComplete = user.ProfileComplete
+            };
+
+            if (user.Role != null)
+            {
+                var features = user.Role.Permissions
+                    .Where(p => p.Feature != null)
+                    .GroupBy(p => p.Feature)
+                    .Select(g => new FeatureDto
+                    {
+                        Name = g.Key.Name,
+                        NameAr = g.Key.NameAr,
+                        Permissions = g.Select(p => new PermissionDto
+                        {
+                            Name = p.Name,
+                            NameAr = p.Ar_Name,
+                        }).ToList()
+                    }).ToList();
+
+                dto.RoleDetails = new RoleDto
+                {
+                    Name = user.Role.Name,
+                    NameAr = user.Role.NameAr,
+                    Features = features
+                };
+            }
+
+            return dto;
         }
 
         public async Task<bool> RegisterBiometricAsync(BiometricRegisterRequestDto request, string userId)

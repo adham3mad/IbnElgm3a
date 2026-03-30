@@ -24,7 +24,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_Read)]
+        [RequirePermission(PermissionEnum.Dashboard_Main_Read)]
         public async Task<IActionResult> GetDashboard([FromQuery] string? semester_id = null)
         {
             var totalStudents = await _context.Students.CountAsync();

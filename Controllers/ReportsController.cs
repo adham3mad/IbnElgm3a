@@ -29,7 +29,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("overview")]
-        [RequirePermission(PermissionEnum.Dashboard_ReportsRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Reports_Read)]
         public async Task<IActionResult> GetOverview([FromQuery] string? semester_id = null, [FromQuery] string? faculty_id = null)
         {
             var totalComplaints = await _context.Complaints.CountAsync();
@@ -103,7 +103,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("export")]
-        [RequirePermission(PermissionEnum.Dashboard_ReportsExport)]
+        [RequirePermission(PermissionEnum.Dashboard_Reports_Export)]
         public async Task<IActionResult> ExportReport([FromQuery] string type, [FromQuery] string format, [FromQuery] string? semester_id = null, [FromQuery] string? faculty_id = null)
         {
             // For simplicity, regardless of type/format request, we will generate a live CSV of Users

@@ -26,7 +26,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_SettingsRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Settings_Read)]
         public async Task<IActionResult> GetSettings()
         {
             var settings = await _context.SystemSettings.ToListAsync();
@@ -48,7 +48,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch]
-        [RequirePermission(PermissionEnum.Dashboard_SettingsUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Settings_Update)]
         public async Task<IActionResult> UpdateSettings([FromBody] UpdateSystemSettingsRequestDto request)
         {
             await UpdateSetting("maintenance_mode", request.MaintenanceMode?.ToString().ToLower());

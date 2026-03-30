@@ -30,7 +30,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Courses_Read)]
         public async Task<IActionResult> GetCourses(
             [FromQuery] string? semester_id = null,
             [FromQuery] string? faculty_id = null,
@@ -77,7 +77,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesCreate)]
+        [RequirePermission(PermissionEnum.Dashboard_Courses_Create)]
         public async Task<IActionResult> CreateCourse([FromBody] CreateCourseRequestDto request)
         {
             var exists = await _context.Courses.AnyAsync(c => c.CourseCode == request.Code);
@@ -119,7 +119,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("{course_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Courses_Read)]
         public async Task<IActionResult> GetCourseById(string course_id)
         {
             var course = await _context.Courses
@@ -157,7 +157,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{course_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Courses_Update)]
         public async Task<IActionResult> UpdateCourse(string course_id, [FromBody] UpdateCourseRequestDto request)
         {
             var course = await _context.Courses.FindAsync(course_id);
@@ -184,7 +184,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{course_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesDelete)]
+        [RequirePermission(PermissionEnum.Dashboard_Courses_Delete)]
         public async Task<IActionResult> DeleteCourse(string course_id)
         {
             var course = await _context.Courses.FindAsync(course_id);

@@ -28,7 +28,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("slots")]
-        [RequirePermission(PermissionEnum.Dashboard_ScheduleRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Schedule_Read)]
         public async Task<IActionResult> GetSlots(
             [FromQuery] string? semester_id = null,
             [FromQuery] DayOfWeekEnum? day = null,
@@ -71,7 +71,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost("slots")]
-        [RequirePermission(PermissionEnum.Dashboard_ScheduleCreate)]
+        [RequirePermission(PermissionEnum.Dashboard_Schedule_Create)]
         public async Task<IActionResult> CreateScheduleSlot([FromBody] CreateScheduleSlotRequestDto request)
         {
             // Uniqueness/Conflict check logic
@@ -104,7 +104,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("slots/{slot_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_ScheduleUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Schedule_Update)]
         public async Task<IActionResult> UpdateSlot(string slot_id, [FromBody] UpdateScheduleSlotRequestDto request)
         {
             var slot = await _context.ScheduleSlots.FindAsync(slot_id);
@@ -135,7 +135,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("slots/{slot_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_ScheduleDelete)]
+        [RequirePermission(PermissionEnum.Dashboard_Schedule_Delete)]
         public async Task<IActionResult> DeleteSlot(string slot_id)
         {
             var slot = await _context.ScheduleSlots.FindAsync(slot_id);

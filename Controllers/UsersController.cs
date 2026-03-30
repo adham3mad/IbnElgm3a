@@ -65,7 +65,7 @@ namespace IbnElgm3a.Controllers
         }
         
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_UsersRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Users_Read)]
         public async Task<IActionResult> GetUsers(
             [FromQuery] UserRole role,
             [FromQuery] UserStatus? status = null,
@@ -116,7 +116,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("{user_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_UsersRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Users_Read)]
         public async Task<IActionResult> GetUserById(string user_id)
         {
             var user = await _context.Users
@@ -141,7 +141,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{user_id}/status")]
-        [RequirePermission(PermissionEnum.Dashboard_UsersUpdateStatus)]
+        [RequirePermission(PermissionEnum.Dashboard_Users_UpdateStatus)]
         public async Task<IActionResult> UpdateUserStatus(string user_id, [FromBody] UpdateUserStatusRequestDto request)
         {
             var user = await _context.Users.FindAsync(user_id);
@@ -155,7 +155,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{user_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_UsersDelete)]
+        [RequirePermission(PermissionEnum.Dashboard_Users_Delete)]
         public async Task<IActionResult> DeleteUser(string user_id)
         {
             var user = await _context.Users.FindAsync(user_id);
@@ -167,7 +167,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost("bulk-import")]
-        [RequirePermission(PermissionEnum.Dashboard_UsersImport)]
+        [RequirePermission(PermissionEnum.Dashboard_Users_Import)]
         public async Task<IActionResult> BulkImport([FromForm] BulkImportRequestDto request)
         {
             if (request.File == null || request.File.Length == 0) 
@@ -206,7 +206,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("bulk-import/{import_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_UsersImport)]
+        [RequirePermission(PermissionEnum.Dashboard_Users_Import)]
         public async Task<IActionResult> GetBulkImportStatus(string import_id)
         {
             var job = await _context.BulkImportJobs.FindAsync(import_id);

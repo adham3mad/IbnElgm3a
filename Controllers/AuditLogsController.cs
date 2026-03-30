@@ -29,7 +29,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_ReportsRead)]
+        [RequirePermission(PermissionEnum.Dashboard_AuditLogs_Read)]
         public async Task<IActionResult> GetAuditLogs(
             [FromQuery] string? user_id = null,
             [FromQuery] string? entity = null,

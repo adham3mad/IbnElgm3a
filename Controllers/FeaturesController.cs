@@ -25,7 +25,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_FeaturesRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Features_Read)]
         public async Task<ActionResult<ApiResponse<List<FeatureResponseDto>>>> GetFeatures([FromQuery] AppType? type)
         {
             var query = _db.Features.AsQueryable();
@@ -45,8 +45,8 @@ namespace IbnElgm3a.Controllers
                         Id = p.Id,
                         Name = p.Name,
                         ArName = p.Ar_Name,
-                        Code = p.Code,
-                        Description = p.Description
+                        Description = p.Description,
+                        ArDescription = p.Ar_Description
                     }).ToList()
                 }).ToListAsync();
 

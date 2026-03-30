@@ -30,7 +30,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_ComplaintsRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Complaints_Read)]
         public async Task<IActionResult> GetComplaints(
             [FromQuery] ComplaintStatus? status = null,
             [FromQuery] ComplaintType? type = null,
@@ -93,7 +93,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("{complaint_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_ComplaintsRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Complaints_Read)]
         public async Task<IActionResult> GetComplaintById(string complaint_id)
         {
             var c = await _context.Complaints
@@ -124,7 +124,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{complaint_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_ComplaintsUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Complaints_Update)]
         public async Task<IActionResult> UpdateComplaint(string complaint_id, [FromBody] UpdateComplaintRequestDto request)
         {
             var complaint = await _context.Complaints.FindAsync(complaint_id);
@@ -144,7 +144,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{complaint_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_ComplaintsDelete)]
+        [RequirePermission(PermissionEnum.Dashboard_Complaints_Delete)]
         public async Task<IActionResult> DeleteComplaint(string complaint_id)
         {
             var complaint = await _context.Complaints.FindAsync(complaint_id);

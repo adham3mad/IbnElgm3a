@@ -51,7 +51,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_StructureRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Faculties_Read)]
         public async Task<IActionResult> GetFaculties()
         {
             var faculties = await _context.Faculties
@@ -80,7 +80,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_StructureRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Faculties_Read)]
         public async Task<IActionResult> GetFacultyById(string id)
         {
             var faculty = await _context.Faculties
@@ -122,7 +122,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.Dashboard_StructureCreate)]
+        [RequirePermission(PermissionEnum.Dashboard_Faculties_Create)]
         public async Task<IActionResult> CreateFaculty([FromBody] CreateFacultyRequestDto request)
         {
             var nameExists = await _context.Faculties.AnyAsync(f => f.Name == request.Name || f.NameAr == request.NameAr);
@@ -159,7 +159,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_StructureUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Faculties_Update)]
         public async Task<IActionResult> UpdateFaculty(string id, [FromBody] UpdateFacultyRequestDto request)
         {
             var faculty = await _context.Faculties.FindAsync(id);
@@ -199,7 +199,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_StructureDelete)]
+        [RequirePermission(PermissionEnum.Dashboard_Faculties_Delete)]
         public async Task<IActionResult> DeleteFaculty(string id)
         {
             var faculty = await _context.Faculties.FindAsync(id);

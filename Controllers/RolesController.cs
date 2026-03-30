@@ -26,7 +26,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_RolesRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Roles_Read)]
         public async Task<ActionResult<ApiResponse<List<RoleResponseDto>>>> GetRoles([FromQuery] AppType? type)
         {
             var query = _db.Roles.AsQueryable();
@@ -48,8 +48,8 @@ namespace IbnElgm3a.Controllers
                         Id = p.Id,
                         Name = p.Name,
                         ArName = p.Ar_Name,
-                        Code = p.Code,
-                        Description = p.Description
+                        Description = p.Description,
+                        ArDescription = p.Ar_Description
                     }).ToList()
                 }).ToListAsync();
 
@@ -57,7 +57,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.Dashboard_RolesCreate)]
+        [RequirePermission(PermissionEnum.Dashboard_Roles_Create)]
         public async Task<ActionResult<ApiResponse<RoleResponseDto>>> CreateRole(RoleRequestDto request)
         {
             var nameExists = await _db.Roles.AnyAsync(r => r.Name == request.Name || r.NameAr == request.NameAr);
@@ -84,7 +84,7 @@ namespace IbnElgm3a.Controllers
 
         [AllowAnonymous]
         [HttpPut("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_RolesUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Roles_Update)]
         public async Task<ActionResult<ApiResponse<RoleResponseDto>>> UpdateRole(string id, RoleRequestDto request)
         {
             var role = await _db.Roles.Include(r => r.Permissions).FirstOrDefaultAsync(r => r.Id == id);
@@ -116,7 +116,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_RolesDelete)]
+        [RequirePermission(PermissionEnum.Dashboard_Roles_Delete)]
         public async Task<ActionResult<ApiResponse<object>>> DeleteRole(string id)
         {
             var role = await _db.Roles.FindAsync(id);

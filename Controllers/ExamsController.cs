@@ -31,7 +31,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_ExamsRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Exams_Read)]
         public async Task<IActionResult> GetExams(
             [FromQuery] string? semester_id = null,
             [FromQuery] string? type = null,
@@ -74,7 +74,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.Dashboard_ExamsCreate)]
+        [RequirePermission(PermissionEnum.Dashboard_Exams_Create)]
         public async Task<IActionResult> CreateExam([FromBody] CreateExamRequestDto request)
         {
             if (!string.IsNullOrEmpty(request.CourseId))
@@ -115,7 +115,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost("{exam_id}/publish")]
-        [RequirePermission(PermissionEnum.Dashboard_ExamsUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Exams_Update)]
         public async Task<IActionResult> PublishExam(string exam_id)
         {
             var exam = await _context.Exams.FindAsync(exam_id);
@@ -128,7 +128,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost("{exam_id}/seat-assignments")]
-        [RequirePermission(PermissionEnum.Dashboard_ExamsUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Exams_Update)]
         public async Task<IActionResult> GenerateSeatAssignments(string exam_id, [FromBody] GenerateSeatAssignmentsRequestDto request)
         {
             var exam = await _context.Exams.Include(e => e.Hall).FirstOrDefaultAsync(e => e.Id == exam_id);
@@ -149,7 +149,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("{exam_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_ExamsRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Exams_Read)]
         public async Task<IActionResult> GetExamById(string exam_id)
         {
             var exam = await _context.Exams
@@ -177,7 +177,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{exam_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_ExamsUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Exams_Update)]
         public async Task<IActionResult> UpdateExam(string exam_id, [FromBody] UpdateExamRequestDto request)
         {
             var exam = await _context.Exams.FindAsync(exam_id);
@@ -197,7 +197,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{exam_id}")]
-        [RequirePermission(PermissionEnum.Dashboard_ExamsDelete)]
+        [RequirePermission(PermissionEnum.Dashboard_Exams_Delete)]
         public async Task<IActionResult> DeleteExam(string exam_id)
         {
             var exam = await _context.Exams.FindAsync(exam_id);

@@ -1,28 +1,71 @@
-# Environment Files
-.env
-.env.local
-.env.*.local
+## [NEW] .gitignore content
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio files
+.vs/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+
+# Visual Studio Code files
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/code-snippets
+
+# JetBrains Rider files
+.idea/
+*.sln.iml
 
 # User-specific files
+*.rsuser
 *.suo
 *.user
 *.userosscache
 *.sln.docstates
 
-bin/
-obj/
-[Dd]ebug/
-[Rr]elease/
-[Bb]in/
-[Oo]bj/
-.vs/
-idea/
-*.sln.iml
-*.nupkg
-*/packages/
+# Roslyn cache directories
+*.ide/
+
+# Environment Files
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+
+# AppSettings (keep the main one, ignore the development and local ones)
+appsettings.Development.json
+appsettings.Local.json
+
+# Tooling
+.nupkg
+**/packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Others
 *.log
 *.tmp
+*.cache
+*.pdb
 node_modules/
 ScaffoldingReadMe.txt
-*.pdb
-*.cachefile

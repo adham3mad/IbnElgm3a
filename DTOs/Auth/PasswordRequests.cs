@@ -6,10 +6,6 @@ namespace IbnElgm3a.DTOs.Auth
     public class ForgotPasswordRequestDto
     {
         [Required]
-        [EmailAddress]
-        [JsonPropertyName("email")]
-        public string Email { get; set; } = string.Empty;
-        [Required]
         [JsonPropertyName("national_id")]
         public string NationalId { get; set; } = string.Empty;
 
@@ -22,10 +18,6 @@ namespace IbnElgm3a.DTOs.Auth
         [Required]
         [JsonPropertyName("national_id")]
         public string NationalId { get; set; } = string.Empty;
-
-        [Required]
-        [JsonPropertyName("otp_token")]
-        public string OtpToken { get; set; } = string.Empty;
 
         [Required]
         [StringLength(6, MinimumLength = 6)]

@@ -53,7 +53,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_StructureRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Departments_Read)]
         public async Task<IActionResult> GetDepartments([FromQuery] string? faculty_id = null)
         {
             var query = _context.Departments.AsQueryable();
@@ -75,7 +75,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_StructureRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Departments_Read)]
         public async Task<IActionResult> GetDepartmentById(string id)
         {
             var dep = await _context.Departments
@@ -102,7 +102,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.Dashboard_StructureCreate)]
+        [RequirePermission(PermissionEnum.Dashboard_Departments_Create)]
         public async Task<IActionResult> CreateDepartment([FromQuery] string faculty_id, [FromBody] CreateDepartmentRequestDto request)
         {
             var facultyExists = await _context.Faculties.AnyAsync(f => f.Id == faculty_id);
@@ -139,7 +139,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_StructureUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Departments_Update)]
         public async Task<IActionResult> UpdateDepartment(string id, [FromBody] UpdateDepartmentRequestDto request)
         {
             var dep = await _context.Departments.FindAsync(id);
@@ -172,7 +172,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_StructureDelete)]
+        [RequirePermission(PermissionEnum.Dashboard_Departments_Delete)]
         public async Task<IActionResult> DeleteDepartment(string id)
         {
             var dep = await _context.Departments.FindAsync(id);

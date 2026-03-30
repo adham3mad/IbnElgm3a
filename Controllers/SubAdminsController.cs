@@ -33,7 +33,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.DashboardUsersRead)]
+        [RequirePermission(PermissionEnum.Dashboard_SubAdmins_Read)]
         public async Task<IActionResult> GetSubAdmins()
         {
             var dbSubAdmins = await _context.SubAdmins
@@ -59,7 +59,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.DashboardUsersCreate)]
+        [RequirePermission(PermissionEnum.Dashboard_SubAdmins_Create)]
         public async Task<IActionResult> CreateSubAdmin([FromBody] CreateSubAdminRequestDto request)
         {
             if (string.IsNullOrEmpty(request.UserId)) return BadRequest(ApiResponse<object>.CreateError("USER_ID_REQUIRED", _localizer.GetMessage("USER_ID_REQUIRED")));
@@ -108,7 +108,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{sub_admin_id}")]
-        [RequirePermission(PermissionEnum.DashboardUsersUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_SubAdmins_Update)]
         public async Task<IActionResult> UpdateSubAdmin(string sub_admin_id, [FromBody] UpdateSubAdminRequestDto request)
         {
             var subAdmin = await _context.SubAdmins.Include(s => s.User).FirstOrDefaultAsync(s => s.Id == sub_admin_id);
@@ -149,7 +149,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{sub_admin_id}")]
-        [RequirePermission(PermissionEnum.DashboardUsersDelete)]
+        [RequirePermission(PermissionEnum.Dashboard_SubAdmins_Delete)]
         public async Task<IActionResult> DeleteSubAdmin(string sub_admin_id)
         {
             var subAdmin = await _context.SubAdmins.FindAsync(sub_admin_id);
@@ -161,7 +161,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("{sub_admin_id}/activity")]
-        [RequirePermission(PermissionEnum.DashboardUsersRead)]
+        [RequirePermission(PermissionEnum.Dashboard_SubAdmins_Read)]
         public async Task<IActionResult> GetSubAdminActivity(string sub_admin_id, [FromQuery] int page = 1, [FromQuery] int limit = 30)
         {
             var subAdmin = await _context.SubAdmins.Include(s => s.User).FirstOrDefaultAsync(s => s.Id == sub_admin_id);

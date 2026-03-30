@@ -26,7 +26,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Grades_Read)]
         public async Task<IActionResult> GetGrades([FromQuery] string? enrollment_id = null)
         {
             var query = _context.Grades.AsQueryable();
@@ -46,7 +46,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Grades_Read)]
         public async Task<IActionResult> GetGradeById(string id)
         {
             var g = await _context.Grades.FindAsync(id);
@@ -63,7 +63,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Grades_Update)]
         public async Task<IActionResult> CreateGrade([FromBody] CreateGradeRequestDto request)
         {
             var enrollment = await _context.Enrollments.FindAsync(request.EnrollmentId);
@@ -94,7 +94,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPatch("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Grades_Update)]
         public async Task<IActionResult> UpdateGrade(string id, [FromBody] UpdateGradeRequestDto request)
         {
             var g = await _context.Grades.FindAsync(id);
@@ -118,7 +118,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_CoursesUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Grades_Update)]
         public async Task<IActionResult> DeleteGrade(string id)
         {
             var g = await _context.Grades.FindAsync(id);

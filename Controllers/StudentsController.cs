@@ -62,7 +62,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_UsersRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Students_Read)]
         public async Task<IActionResult> GetStudents(
             [FromQuery] string? q = null,
             [FromQuery] string? faculty_id = null,
@@ -108,7 +108,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_UsersRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Students_Read)]
         public async Task<IActionResult> GetStudentById(string id)
         {
             var student = await _context.Students
@@ -156,7 +156,8 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpPost]
-        [RequirePermission(PermissionEnum.Dashboard_StudentsCreate)]
+        [AllowAnonymous]
+        [RequirePermission(PermissionEnum.Dashboard_Students_Create)]
         public async Task<IActionResult> CreateStudent([FromBody] CreateStudentRequestDto request)
         {
             var exists = await _context.Users.AnyAsync(u => u.Email == request.Email);
@@ -218,13 +219,24 @@ namespace IbnElgm3a.Controllers
             await _context.SaveChangesAsync();
 
             // Send Welcome Email (Password is NationalId by default)
-            await _emailService.SendWelcomeEmailAsync(user.Email, user.Name, user.NationalId);
+            // Send Welcome Email in background to avoid delay
+            // _ = Task.Run(async () =>
+            // {
+            //     try
+            //     {
+            //         await _emailService.SendWelcomeEmailAsync(user.Email, user.Name, user.NationalId);
+            //     }
+            //     catch (Exception)
+            //     {
+            //         // Fire and forget
+            //     }
+            // });
 
             return Created("", ApiResponse<object>.CreateSuccess(new { id = user.Id }));
         }
 
         [HttpPatch("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_StudentsUpdate)]
+        [RequirePermission(PermissionEnum.Dashboard_Students_Update)]
         public async Task<IActionResult> UpdateStudent(string id, [FromBody] UpdateStudentRequestDto request)
         {
             var student = await _context.Students
@@ -258,7 +270,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpDelete("{id}")]
-        [RequirePermission(PermissionEnum.Dashboard_UsersDelete)]
+        [RequirePermission(PermissionEnum.Dashboard_Students_Delete)]
         public async Task<IActionResult> DeleteStudent(string id)
         {
             var student = await _context.Students.Include(s => s.User).FirstOrDefaultAsync(s => s.Id == id || s.UserId == id);

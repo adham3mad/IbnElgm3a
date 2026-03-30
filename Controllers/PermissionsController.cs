@@ -26,7 +26,7 @@ namespace IbnElgm3a.Controllers
         }
 
         [HttpGet]
-        [RequirePermission(PermissionEnum.Dashboard_RolesRead)]
+        [RequirePermission(PermissionEnum.Dashboard_Permissions_Read)]
         public async Task<IActionResult> GetPermissions()
         {
             var permissions = await _context.Permissions
