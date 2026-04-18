@@ -1,6 +1,7 @@
 using DotNetEnv;
 using IbnElgm3a.Middleware;
-using IbnElgm3a.Model;
+using IbnElgm3a.Models;
+using IbnElgm3a.Models.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Localization;
@@ -9,12 +10,16 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Globalization;
 using System.Text;
+using Serilog;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace IbnElgm3a
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var envPath = Path.Combine(Directory.GetCurrentDirectory(), ".env");
             if (File.Exists(envPath))
@@ -23,6 +28,15 @@ namespace IbnElgm3a
             }
 
             var builder = WebApplication.CreateBuilder(args);
+
+            Log.Logger = new LoggerConfiguration()
+                .WriteTo.Console()
+                .WriteTo.File("Logs/log-.txt", rollingInterval: RollingInterval.Day)
+                .CreateLogger();
+
+            builder.Host.UseSerilog();
+            builder.Logging.ClearProviders();
+            builder.Logging.AddSerilog();
 
             // Add services to the container.
 
@@ -136,9 +150,24 @@ namespace IbnElgm3a
                 options.AddPolicy("AllowAll",
                     policy => policy
                         .AllowAnyOrigin()
-                          .AllowAnyHeader()
+                        .AllowAnyHeader()
                         .AllowAnyMethod());
             });
+
+            // Rate Limiting (Production Protection)
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.AddFixedWindowLimiter("auth", opt =>
+                {
+                    opt.Window = TimeSpan.FromMinutes(1);
+                    opt.PermitLimit = 5; // Max 5 login attempts per minute per IP
+                    opt.QueueLimit = 0;
+                });
+            });
+
+            // Health Checks
+            builder.Services.AddHealthChecks()
+                .AddNpgSql(connString ?? "", name: "Database");
 
             // Global Authorization Policy (Secure by Default)
             builder.Services.AddAuthorization(options =>
@@ -179,9 +208,21 @@ namespace IbnElgm3a
             app.UseHttpsRedirection();
 
             app.UseAuthentication();
+            app.UseMiddleware<IbnElgm3a.Middleware.SecurityHeadersMiddleware>();
             app.UseMiddleware<IbnElgm3a.Middleware.TokenValidationMiddleware>();
             app.UseMiddleware<IbnElgm3a.Middleware.PermissionAuthorizationMiddleware>();
             app.UseAuthorization();
+            app.UseRateLimiter();
+
+            app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+            {
+                ResultStatusCodes =
+                {
+                    [HealthStatus.Healthy] = StatusCodes.Status200OK,
+                    [HealthStatus.Degraded] = StatusCodes.Status200OK,
+                    [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
+                }
+            });
 
             var cultures = new[] { new CultureInfo("en"), new CultureInfo("ar") };
             app.UseRequestLocalization(new RequestLocalizationOptions
@@ -192,6 +233,20 @@ namespace IbnElgm3a
             });
 
             app.MapControllers();
+
+            // Seed Permissions
+            using (var scope = app.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                try
+                {
+                    await PermissionSeeder.SeedAsync(context);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Seeding failed: {ex.Message}");
+                }
+            }
 
             app.Run();
         }

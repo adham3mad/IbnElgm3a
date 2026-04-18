@@ -37,5 +37,14 @@ namespace IbnElgm3a.DTOs.Exams
 
         [JsonPropertyName("has_seat_plan")]
         public bool HasSeatPlan { get; set; }
+
+        [JsonPropertyName("seating_strategy")]
+        public SeatingStrategy? SeatingStrategy { get; set; }
+
+        [JsonPropertyName("seat_plan_pdf_url")]
+        public string? SeatPlanPdfUrl { get; set; }
+
+        [JsonPropertyName("published_at")]
+        public DateTimeOffset? PublishedAt { get; set; }
     }
 }

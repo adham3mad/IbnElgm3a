@@ -1,7 +1,7 @@
 using IbnElgm3a.DTOs.Rooms;
 using IbnElgm3a.Enums;
-using IbnElgm3a.Model;
-using IbnElgm3a.Model.Data;
+using IbnElgm3a.Models;
+using IbnElgm3a.Models.Data;
 using IbnElgm3a.Models;
 using IbnElgm3a.Models.Data;
 using IbnElgm3a.Filters;
@@ -28,14 +28,19 @@ namespace IbnElgm3a.Controllers
 
         [HttpGet]
         [RequirePermission(PermissionEnum.Dashboard_Rooms_Read)]
-        public async Task<IActionResult> GetRooms()
+        public async Task<IActionResult> GetRooms([FromQuery] string? faculty_id = null)
         {
-            var rooms = await _context.Rooms
+            var query = _context.Rooms.AsQueryable();
+            if (!string.IsNullOrEmpty(faculty_id)) query = query.Where(r => r.FacultyId == faculty_id);
+
+            var rooms = await query
                 .Select(r => new RoomResponseDto
                 {
                     Id = r.Id,
                     Name = r.Name,
-                    Capacity = r.Capacity
+                    Code = r.Code,
+                    Capacity = r.Capacity,
+                    Type = r.Type
                 }).ToListAsync();
 
             return Ok(ApiResponse<List<RoomResponseDto>>.CreateSuccess(rooms));
@@ -52,7 +57,9 @@ namespace IbnElgm3a.Controllers
             {
                 Id = r.Id,
                 Name = r.Name,
-                Capacity = r.Capacity
+                Code = r.Code,
+                Capacity = r.Capacity,
+                Type = r.Type
             }));
         }
 
@@ -64,7 +71,10 @@ namespace IbnElgm3a.Controllers
             {
                 Id = "room_" + Guid.NewGuid().ToString("N").Substring(0, 10),
                 Name = request.Name,
+                Code = request.Code ?? "",
                 Capacity = request.Capacity,
+                Type = request.Type ?? RoomType.LectureHall,
+                FacultyId = request.FacultyId,
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
             };
@@ -83,7 +93,10 @@ namespace IbnElgm3a.Controllers
             if (r == null) return NotFound(ApiResponse<object>.CreateError("ROOM_NOT_FOUND", "Room not found."));
 
             if (request.Name != null) r.Name = request.Name;
+            if (request.Code != null) r.Code = request.Code;
             if (request.Capacity.HasValue) r.Capacity = request.Capacity.Value;
+            if (request.Type.HasValue) r.Type = request.Type.Value;
+            if (request.FacultyId != null) r.FacultyId = request.FacultyId;
             r.UpdatedAt = DateTimeOffset.UtcNow;
 
             await _context.SaveChangesAsync();

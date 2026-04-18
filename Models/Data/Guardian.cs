@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Collections.Generic;
 
-namespace IbnElgm3a.Model.Data
+namespace IbnElgm3a.Models.Data
 {
     public class Guardian : BaseEntity
     {

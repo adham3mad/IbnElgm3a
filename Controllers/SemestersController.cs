@@ -1,7 +1,7 @@
 using IbnElgm3a.DTOs.Academics.Semesters;
 using IbnElgm3a.Enums;
-using IbnElgm3a.Model;
-using IbnElgm3a.Model.Data;
+using IbnElgm3a.Models;
+using IbnElgm3a.Models.Data;
 using IbnElgm3a.Models;
 using IbnElgm3a.Models.Data;
 using IbnElgm3a.Filters;
@@ -41,7 +41,11 @@ namespace IbnElgm3a.Controllers
                     Id = s.Id,
                     Name = s.Name,
                     StartDate = s.StartDate,
-                    EndDate = s.EndDate
+                    EndDate = s.EndDate,
+                    IsActive = s.IsActive,
+                    TotalWeeks = (s.EndDate - s.StartDate).Days / 7,
+                    CurrentWeek = (DateTimeOffset.UtcNow - s.StartDate).Days / 7 + 1,
+                    NextEvent = s.NextEvent
                 }).ToListAsync();
 
             return Ok(ApiResponse<List<SemesterResponseDto>>.CreateSuccess(semesters));
@@ -59,7 +63,30 @@ namespace IbnElgm3a.Controllers
                 Id = s.Id,
                 Name = s.Name,
                 StartDate = s.StartDate,
-                EndDate = s.EndDate
+                EndDate = s.EndDate,
+                IsActive = s.IsActive,
+                TotalWeeks = (s.EndDate - s.StartDate).Days / 7,
+                CurrentWeek = (DateTimeOffset.UtcNow - s.StartDate).Days / 7 + 1,
+                NextEvent = s.NextEvent
+            }));
+        }
+
+        [HttpGet("active")]
+        public async Task<IActionResult> GetActiveSemester()
+        {
+            var s = await _context.Semesters.OrderByDescending(x => x.StartDate).FirstOrDefaultAsync(x => x.IsActive);
+            if (s == null) return NotFound(ApiResponse<object>.CreateError("NO_ACTIVE_SEMESTER", "No active semester found"));
+
+            return Ok(ApiResponse<SemesterResponseDto>.CreateSuccess(new SemesterResponseDto
+            {
+                Id = s.Id,
+                Name = s.Name,
+                StartDate = s.StartDate,
+                EndDate = s.EndDate,
+                IsActive = s.IsActive,
+                TotalWeeks = (s.EndDate - s.StartDate).Days / 7,
+                CurrentWeek = (DateTimeOffset.UtcNow - s.StartDate).Days / 7 + 1,
+                NextEvent = s.NextEvent
             }));
         }
 

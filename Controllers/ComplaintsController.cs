@@ -9,8 +9,8 @@ using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using IbnElgm3a.Model;
-using IbnElgm3a.Model.Data;
+using IbnElgm3a.Models;
+using IbnElgm3a.Models.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace IbnElgm3a.Controllers
@@ -99,6 +99,8 @@ namespace IbnElgm3a.Controllers
             var c = await _context.Complaints
                 .Include(comp => comp.Student)
                 .Include(comp => comp.AssignedTo)
+                .Include(comp => comp.InternalNotes)
+                    .ThenInclude(n => n.Author)
                 .FirstOrDefaultAsync(comp => comp.Id == complaint_id);
 
             if (c == null) return NotFound(ApiResponse<object>.CreateError("COMPLAINT_NOT_FOUND", _localizer.GetMessage("COMPLAINT_NOT_FOUND")));
@@ -116,8 +118,14 @@ namespace IbnElgm3a.Controllers
                 CreatedAt = c.CreatedAt,
                 LastResponseAt = c.LastResponseAt,
                 Description = c.Description,
-                InternalNote = c.InternalNote,
-                Response = c.Response
+                Response = c.Response,
+                InternalNotes = c.InternalNotes.Select(n => new InternalNoteDto
+                {
+                    Id = n.Id,
+                    AuthorName = n.Author?.Name ?? "Admin",
+                    Text = n.Text,
+                    CreatedAt = n.CreatedAt
+                }).ToList()
             };
 
             return Ok(ApiResponse<ComplaintDetailResponseDto>.CreateSuccess(dto));
@@ -132,7 +140,6 @@ namespace IbnElgm3a.Controllers
 
             if (request.Status.HasValue) complaint.Status = request.Status.Value;
             if (request.AssignedTo != null) complaint.AssignedToId = request.AssignedTo;
-            if (request.InternalNote != null) complaint.InternalNote = request.InternalNote;
             if (request.Response != null)
             {
                 complaint.Response = request.Response;
@@ -153,6 +160,29 @@ namespace IbnElgm3a.Controllers
             _context.Complaints.Remove(complaint);
             await _context.SaveChangesAsync();
             return Ok(ApiResponse<object>.CreateSuccess(new { message = _localizer.GetMessage("DELETED_SUCCESS") }));
+        }
+
+        [HttpPost("{complaint_id}/internal-notes")]
+        [RequirePermission(PermissionEnum.Dashboard_Complaints_Update)]
+        public async Task<IActionResult> AddInternalNote(string complaint_id, [FromBody] System.Text.Json.JsonElement request)
+        {
+            var complaint = await _context.Complaints.FindAsync(complaint_id);
+            if (complaint == null) return NotFound(ApiResponse<object>.CreateError("COMPLAINT_NOT_FOUND", _localizer.GetMessage("COMPLAINT_NOT_FOUND")));
+
+            var text = request.GetProperty("text").GetString();
+            if (string.IsNullOrEmpty(text)) return BadRequest(ApiResponse<object>.CreateError("EMPTY_NOTE", "Note text is required"));
+
+            var note = new ComplaintNote
+            {
+                ComplaintId = complaint_id,
+                AuthorId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "",
+                Text = text
+            };
+
+            _context.ComplaintNotes.Add(note);
+            await _context.SaveChangesAsync();
+
+            return Ok(ApiResponse<object>.CreateSuccess(new { message = "Note added successfully" }));
         }
     }
 }

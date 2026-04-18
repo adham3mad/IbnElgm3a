@@ -1,7 +1,7 @@
 using IbnElgm3a.Enums;
 using System.ComponentModel.DataAnnotations;
 
-namespace IbnElgm3a.Model.Data
+namespace IbnElgm3a.Models.Data
 {
     public class Room : BaseEntity
     {
@@ -9,7 +9,12 @@ namespace IbnElgm3a.Model.Data
         [StringLength(100)]
         public string Name { get; set; } = string.Empty;
 
+        [StringLength(20)]
+        public string Code { get; set; } = string.Empty;
+
         public int Capacity { get; set; }
+
+        public RoomType Type { get; set; } = RoomType.LectureHall;
 
         public string? FacultyId { get; set; }
         public virtual Faculty? Faculty { get; set; }

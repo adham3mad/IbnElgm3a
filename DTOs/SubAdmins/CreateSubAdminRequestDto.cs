@@ -25,5 +25,8 @@ namespace IbnElgm3a.DTOs.SubAdmins
         [Required]
         [JsonPropertyName("role_id")]
         public string RoleId { get; set; } = string.Empty;
+
+        [JsonPropertyName("permissions")]
+        public List<string>? Permissions { get; set; }
     }
 }

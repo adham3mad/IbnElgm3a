@@ -32,5 +32,8 @@ namespace IbnElgm3a.DTOs.Exams
 
         [JsonPropertyName("status")]
         public ExamStatus? Status { get; set; }
+
+        [JsonPropertyName("seating_strategy")]
+        public SeatingStrategy? SeatingStrategy { get; set; }
     }
 }

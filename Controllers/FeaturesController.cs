@@ -1,7 +1,7 @@
 using IbnElgm3a.DTOs.RolesPermissions;
 using IbnElgm3a.Enums;
 using IbnElgm3a.Models;
-using IbnElgm3a.Model;
+using IbnElgm3a.Models;
 using IbnElgm3a.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

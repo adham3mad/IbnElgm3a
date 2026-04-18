@@ -6,8 +6,8 @@ using IbnElgm3a.Filters;
 using IbnElgm3a.Services.Localization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using IbnElgm3a.Model;
-using IbnElgm3a.Model.Data;
+using IbnElgm3a.Models;
+using IbnElgm3a.Models.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 

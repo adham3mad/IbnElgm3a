@@ -16,5 +16,8 @@ namespace IbnElgm3a.DTOs.SubAdmins
 
         [JsonPropertyName("is_active")]
         public bool? IsActive { get; set; }
+
+        [JsonPropertyName("permissions")]
+        public List<string>? Permissions { get; set; }
     }
 }

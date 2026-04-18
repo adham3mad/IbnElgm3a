@@ -107,6 +107,14 @@ namespace IbnElgm3a.Controllers
             return Ok(new { message = _localizer.GetMessage("PASSWORD_UPDATED") });
         }
 
+        [HttpGet("biometric/challenge")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetBiometricChallenge()
+        {
+            var challenge = await _authService.GetBiometricChallengeAsync();
+            return Ok(new { challenge });
+        }
+
         [HttpPost("biometric/login")]
         [AllowAnonymous]
         public async Task<IActionResult> BiometricLogin([FromBody] BiometricLoginRequestDto request)

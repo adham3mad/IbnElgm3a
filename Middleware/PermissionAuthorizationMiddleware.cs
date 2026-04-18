@@ -1,4 +1,4 @@
-using IbnElgm3a.Model;
+using IbnElgm3a.Models;
 using IbnElgm3a.Models;
 using IbnElgm3a.Enums;
 using Microsoft.AspNetCore.Http;

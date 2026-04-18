@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
-namespace IbnElgm3a.Model.Data
+namespace IbnElgm3a.Models.Data
 {
     public class Exam : BaseEntity
     {
@@ -31,6 +31,13 @@ namespace IbnElgm3a.Model.Data
         
         [StringLength(500)]
         public string? LayoutUrl { get; set; }
+        
+        [StringLength(500)]
+        public string? SeatPlanPdfUrl { get; set; }
+        
+        public SeatingStrategy SeatingStrategy { get; set; } = SeatingStrategy.Alphabetical;
+        
+        public DateTimeOffset? PublishedAt { get; set; }
         
         public int EnrolledCount { get; set; }
 

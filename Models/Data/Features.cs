@@ -2,7 +2,7 @@ using IbnElgm3a.Enums;
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace IbnElgm3a.Model.Data
+namespace IbnElgm3a.Models.Data
 {
     public class Complaint : BaseEntity
     {
@@ -28,8 +28,21 @@ namespace IbnElgm3a.Model.Data
 
         public DateTimeOffset? LastResponseAt { get; set; }
 
-        public string? InternalNote { get; set; }
         public string? Response { get; set; }
+
+        public virtual ICollection<ComplaintNote> InternalNotes { get; set; } = new List<ComplaintNote>();
+    }
+
+    public class ComplaintNote : BaseEntity
+    {
+        public string ComplaintId { get; set; } = string.Empty;
+        public virtual Complaint? Complaint { get; set; }
+
+        public string AuthorId { get; set; } = string.Empty;
+        public virtual User? Author { get; set; }
+
+        [Required]
+        public string Text { get; set; } = string.Empty;
     }
 
     public class SubAdmin : BaseEntity
@@ -43,6 +56,9 @@ namespace IbnElgm3a.Model.Data
 
         public bool IsActive { get; set; } = true;
         public DateTimeOffset? LastActiveAt { get; set; }
+        
+        // Permissions are stored as a comma-separated string for simplicity in the current structure
+        public string Permissions { get; set; } = string.Empty;
     }
 
     public class Announcement : BaseEntity

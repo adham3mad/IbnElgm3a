@@ -7,8 +7,8 @@ using IbnElgm3a.Filters;
 using IbnElgm3a.Services.Localization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using IbnElgm3a.Model;
-using IbnElgm3a.Model.Data;
+using IbnElgm3a.Models;
+using IbnElgm3a.Models.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace IbnElgm3a.Controllers
@@ -145,6 +145,69 @@ namespace IbnElgm3a.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(ApiResponse<object>.CreateSuccess(new { message = _localizer.GetMessage("DELETED_SUCCESS") }));
+        }
+        [HttpGet("conflict-resolution")]
+        [RequirePermission(PermissionEnum.Dashboard_Schedule_Read)]
+        public async Task<IActionResult> GetConflictResolution(
+            [FromQuery] string? slot_id = null,
+            [FromQuery] DayOfWeekEnum? day = null,
+            [FromQuery] string? start_time = null,
+            [FromQuery] string? end_time = null,
+            [FromQuery] string? room_id = null,
+            [FromQuery] string? section_id = null)
+        {
+            if (!day.HasValue || string.IsNullOrEmpty(start_time) || string.IsNullOrEmpty(end_time))
+                return BadRequest(ApiResponse<object>.CreateError("MISSING_PARAMS", "Day, start_time, and end_time are required"));
+
+            var roomConflicts = new List<object>();
+            var instructorConflicts = new List<object>();
+
+            // 1. Room Conflict
+            if (!string.IsNullOrEmpty(room_id))
+            {
+                var rConflicts = await _context.ScheduleSlots
+                    .Include(s => s.CourseSection)
+                        .ThenInclude(sec => sec!.Course)
+                    .Where(s => s.Id != slot_id && s.RoomId == room_id && s.Day == day.Value &&
+                        ((string.Compare(s.StartTime, start_time) < 0 && string.Compare(s.EndTime, start_time) > 0) ||
+                         (string.Compare(s.StartTime, end_time) < 0 && string.Compare(s.EndTime, end_time) > 0) ||
+                         (string.Compare(s.StartTime, start_time) >= 0 && string.Compare(s.EndTime, end_time) <= 0)))
+                    .ToListAsync();
+
+                foreach (var c in rConflicts)
+                {
+                    roomConflicts.Add(new { type = "room_overlap", slot_id = c.Id, course_name = c.CourseSection?.Course?.Title, room_name = c.Room?.Name });
+                }
+            }
+
+            // 2. Instructor Conflict
+            if (!string.IsNullOrEmpty(section_id))
+            {
+                var section = await _context.Sections.FindAsync(section_id);
+                if (section != null && !string.IsNullOrEmpty(section.InstructorId))
+                {
+                    var iConflicts = await _context.ScheduleSlots
+                        .Include(s => s.CourseSection)
+                            .ThenInclude(sec => sec!.Course)
+                        .Where(s => s.Id != slot_id && s.Day == day.Value && s.CourseSection != null && s.CourseSection.InstructorId == section.InstructorId &&
+                            ((string.Compare(s.StartTime, start_time) < 0 && string.Compare(s.EndTime, start_time) > 0) ||
+                             (string.Compare(s.StartTime, end_time) < 0 && string.Compare(s.EndTime, end_time) > 0) ||
+                             (string.Compare(s.StartTime, start_time) >= 0 && string.Compare(s.EndTime, end_time) <= 0)))
+                        .ToListAsync();
+
+                    foreach (var c in iConflicts)
+                    {
+                        instructorConflicts.Add(new { type = "instructor_busy", slot_id = c.Id, course_name = c.CourseSection?.Course?.Title, instructor_name = c.CourseSection?.Instructor?.UserId });
+                    }
+                }
+            }
+
+            return Ok(new
+            {
+                has_conflict = roomConflicts.Any() || instructorConflicts.Any(),
+                room_conflicts = roomConflicts,
+                instructor_conflicts = instructorConflicts
+            });
         }
     }
 }

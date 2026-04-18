@@ -1,7 +1,7 @@
 using IbnElgm3a.DTOs.Auth;
 using IbnElgm3a.Enums;
-using IbnElgm3a.Model;
-using IbnElgm3a.Model.Data;
+using IbnElgm3a.Models;
+using IbnElgm3a.Models.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -56,8 +56,8 @@ namespace IbnElgm3a.Services
 
             return new LoginResponseDto
             {
-                Tokens = GenerateTokens(user, request.RememberMe ?? false),
-                User = MapToAuthUserDto(user)
+                Tokens = await GenerateTokensAsync(user, request.RememberMe ?? false),
+                User = await MapToAuthUserDtoAsync(user)
             };
         }
 
@@ -70,7 +70,7 @@ namespace IbnElgm3a.Services
             if (tokenEntity == null || tokenEntity.IsRevoked || tokenEntity.ExpiryDate < DateTimeOffset.UtcNow)
                 return null;
 
-            return GenerateAccessTokens(tokenEntity.User!, false, request.RefreshToken);
+            return await GenerateAccessTokensAsync(tokenEntity.User!, false, request.RefreshToken);
         }
 
         public async Task<bool> LogoutAsync(LogoutRequestDto request, string userId)
@@ -120,10 +120,7 @@ namespace IbnElgm3a.Services
                 {
                     await _emailService.SendPasswordResetEmailAsync(user.Email, otpCode, user.Name);
                 }
-                catch (Exception)
-                {
-                    // Log error if needed, but since we are fire-and-forget, we just catch to prevent crash
-                }
+                catch (Exception) { }
             });
 
             return (request.Channel, 900);
@@ -143,7 +140,6 @@ namespace IbnElgm3a.Services
 
             if (activeOtp == null) return null;
 
-            // Mark OTP as used
             activeOtp.IsRevoked = true;
 
             // Generate a secure Reset Token (Valid for 15 mins)
@@ -203,51 +199,53 @@ namespace IbnElgm3a.Services
 
             return new LoginResponseDto
             {
-                Tokens = GenerateTokens(device.User, true),
-                User = MapToAuthUserDto(device.User)
+                Tokens = await GenerateTokensAsync(device.User, true),
+                User = await MapToAuthUserDtoAsync(device.User)
             };
         }
 
-        private AuthUserDto MapToAuthUserDto(User user)
+        public async Task<string> GetBiometricChallengeAsync()
         {
-            var roleEnum = Enum.TryParse<UserRole>(user.Role?.Name ?? "", true, out var r) ? r : UserRole.Student;
+            // Simple challenge for now, could be stored in cache/session if needed
+            return await Task.FromResult(Guid.NewGuid().ToString("N"));
+        }
+
+        private async Task<AuthUserDto> MapToAuthUserDtoAsync(User user)
+        {
+            var roleName = user.Role?.Name?.ToLower() ?? "student";
+            var roleEnum = Enum.TryParse<UserRole>(roleName, true, out var r) ? r : UserRole.Student;
             
             var dto = new AuthUserDto
             {
                 Id = user.Id,
                 Role = roleEnum,
                 FullName = user.Name,
-                FullNameAr = user.FullNameAr,
                 Email = user.Email,
                 AvatarUrl = user.AvatarUrl,
                 FacultyId = user.FacultyId,
-                DepartmentId = user.DepartmentId,
-                MustChangePw = user.MustChangePw,
-                ProfileComplete = user.ProfileComplete
+                MustChangePw = user.MustChangePw
             };
 
-            if (user.Role != null)
+            // Check if user is a sub-admin to get scope
+            var subAdmin = await _context.SubAdmins.FirstOrDefaultAsync(s => s.UserId == user.Id && s.IsActive);
+            if (subAdmin != null)
             {
-                var features = user.Role.Permissions
-                    .Where(p => p.Feature != null)
-                    .GroupBy(p => p.Feature)
-                    .Select(g => new FeatureDto
-                    {
-                        Name = g.Key.Name,
-                        NameAr = g.Key.NameAr,
-                        Permissions = g.Select(p => new PermissionDto
-                        {
-                            Name = p.Name,
-                            NameAr = p.Ar_Name,
-                        }).ToList()
-                    }).ToList();
-
-                dto.RoleDetails = new RoleDto
+                dto.ScopeType = subAdmin.ScopeType;
+                dto.ScopeId = subAdmin.ScopeId;
+                dto.Permissions = subAdmin.Permissions?.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList() ?? new List<string>();
+            }
+            else
+            {
+                // For main admin or regular users
+                if (roleEnum == UserRole.Admin)
                 {
-                    Name = user.Role.Name,
-                    NameAr = user.Role.NameAr,
-                    Features = features
-                };
+                    dto.Permissions = new List<string> { "*" };
+                }
+                else
+                {
+                    // Regular user permissions based on role
+                    dto.Permissions = user.Role?.Permissions.Select(p => p.Name).ToList() ?? new List<string>();
+                }
             }
 
             return dto;
@@ -284,7 +282,7 @@ namespace IbnElgm3a.Services
             return true;
         }
 
-        private AuthTokensDto GenerateTokens(User user, bool rememberMe)
+        private async Task<AuthTokensDto> GenerateTokensAsync(User user, bool rememberMe)
         {
             var jwtKey = _config["JWT_KEY"] ?? "MasaarVerySecureSuperSecretKey123456!!";
             var issuer = _config["JWT_ISSUER"] ?? "Masaar";
@@ -293,16 +291,22 @@ namespace IbnElgm3a.Services
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+            // Fetch sub-admin scope if applicable
+            var subAdmin = await _context.SubAdmins.FirstOrDefaultAsync(s => s.UserId == user.Id && s.IsActive);
+            
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id),
                 new Claim(ClaimTypes.Email, user.Email),
                 new Claim("role", user.Role?.Name?.ToLower() ?? "student"),
                 new Claim("faculty_id", user.FacultyId ?? ""),
-                new Claim("department_id", user.DepartmentId ?? "")
+                new Claim("department_id", user.DepartmentId ?? ""),
+                new Claim("scope_type", subAdmin?.ScopeType.ToString().ToLower() ?? "null"),
+                new Claim("scope_id", subAdmin?.ScopeId ?? "null")
             };
 
-            var expiry = DateTime.UtcNow.AddMinutes(15);
+            var expiryMinutes = 15;
+            var expiry = DateTime.UtcNow.AddMinutes(expiryMinutes);
             var token = new JwtSecurityToken(
                 issuer: issuer,
                 audience: audience,
@@ -311,11 +315,14 @@ namespace IbnElgm3a.Services
                 signingCredentials: creds
             );
 
+            var refreshTokenTtlDays = rememberMe ? 90 : 30;
+
             var tokens = new AuthTokensDto
             {
                 AccessToken = new JwtSecurityTokenHandler().WriteToken(token),
-                RefreshToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N"),
-                ExpiresIn = DateTime.UtcNow.AddMinutes(15) // 15 mins
+                RefreshToken = Guid.NewGuid().ToString("N"),
+                ExpiresIn = expiryMinutes * 60,
+                ExpiresAt = expiry
             };
 
             // Save Refresh Token to DB
@@ -324,21 +331,24 @@ namespace IbnElgm3a.Services
                 UserId = user.Id,
                 TokenValue = tokens.RefreshToken,
                 TokenType = "refresh",
-                ExpiryDate = DateTimeOffset.UtcNow.AddDays(7)
+                ExpiryDate = DateTimeOffset.UtcNow.AddDays(refreshTokenTtlDays)
             });
+
+            // Save Access Token to DB for consistency
             _context.Tokens.Add(new Token
             {
                 UserId = user.Id,
                 TokenValue = tokens.AccessToken,
                 TokenType = "access",
-                ExpiryDate = DateTimeOffset.UtcNow.AddMinutes(15)
+                ExpiryDate = DateTimeOffset.UtcNow.AddMinutes(expiryMinutes)
             });
-            _context.SaveChanges();
+            
+            await _context.SaveChangesAsync();
 
             return tokens;
         }
     
-        private AuthTokensDto GenerateAccessTokens(User user, bool rememberMe, string RefreshToken)
+        private async Task<AuthTokensDto> GenerateAccessTokensAsync(User user, bool rememberMe, string RefreshToken)
         {
             var jwtKey = _config["JWT_KEY"] ?? "MasaarVerySecureSuperSecretKey123456!!";
             var issuer = _config["JWT_ISSUER"] ?? "Masaar";
@@ -347,16 +357,21 @@ namespace IbnElgm3a.Services
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+            var subAdmin = await _context.SubAdmins.FirstOrDefaultAsync(s => s.UserId == user.Id && s.IsActive);
+            
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id),
                 new Claim(ClaimTypes.Email, user.Email),
                 new Claim("role", user.Role?.Name?.ToLower() ?? "student"),
                 new Claim("faculty_id", user.FacultyId ?? ""),
-                new Claim("department_id", user.DepartmentId ?? "")
+                new Claim("department_id", user.DepartmentId ?? ""),
+                new Claim("scope_type", subAdmin?.ScopeType.ToString().ToLower() ?? "null"),
+                new Claim("scope_id", subAdmin?.ScopeId ?? "null")
             };
 
-            var expiry = DateTime.UtcNow.AddMinutes(15);
+            var expiryMinutes = 15;
+            var expiry = DateTime.UtcNow.AddMinutes(expiryMinutes);
             var token = new JwtSecurityToken(
                 issuer: issuer,
                 audience: audience,
@@ -369,7 +384,8 @@ namespace IbnElgm3a.Services
             {
                 AccessToken = new JwtSecurityTokenHandler().WriteToken(token),
                 RefreshToken = RefreshToken,
-                ExpiresIn = DateTime.UtcNow.AddMinutes(15) // 15 mins
+                ExpiresIn = expiryMinutes * 60,
+                ExpiresAt = expiry
             };
 
             _context.Tokens.Add(new Token
@@ -377,9 +393,9 @@ namespace IbnElgm3a.Services
                 UserId = user.Id,
                 TokenValue = tokens.AccessToken,
                 TokenType = "access",
-                ExpiryDate = DateTimeOffset.UtcNow.AddMinutes(15)
+                ExpiryDate = DateTimeOffset.UtcNow.AddMinutes(expiryMinutes)
             });
-            _context.SaveChanges();
+            await _context.SaveChangesAsync();
 
             return tokens;
         }

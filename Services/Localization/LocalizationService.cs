@@ -86,7 +86,24 @@ namespace IbnElgm3a.Services.Localization
                     { "SAME_PASSWORD_NOT_ALLOWED", "لا يمكن استخدام كلمة المرور الحالية ككلمة مرور جديدة" },
                     { "EXAM_PUBLISHED", "تم نشر الامتحان بنجاح" },
                     { "ANNOUNCEMENT_UPDATED", "تم تحديث الإعلان بنجاح" },
-                    { "ANNOUNCEMENT_DELETED", "تم حذف الإعلان بنجاح" }
+                    { "ANNOUNCEMENT_DELETED", "تم حذف الإعلان بنجاح" },
+                    
+                    // Added for v2.0
+                    { "FACULTY_CODE_TAKEN", "رمز الكلية مسجل مسبقاً" },
+                    { "FACULTY_NAME_TAKEN", "اسم الكلية مسجل مسبقاً" },
+                    { "INVALID_FACULTY", "الكلية غير موجودة" },
+                    { "INVALID_DEPT", "القسم غير موجود أو لا ينتمي لهذه الكلية" },
+                    { "PERMISSION_ESCALATION", "لا يمكنك منح صلاحيات لا تملكها" },
+                    { "ALREADY_SUB_ADMIN", "هذا المستخدم مشرف بالفعل" },
+                    { "EMAIL_TAKEN", "البريد الإلكتروني مسجل مسبقاً" },
+                    { "NATIONAL_ID_TAKEN", "الرقم القومي مسجل مسبقاً" },
+                    { "PASSWORD_EXPIRED", "انتهت صلاحية كلمة المرور، يرجى تعيين كلمة مرور جديدة" },
+                    { "ACCOUNT_LOCKED", "تم قفل الحساب بسبب محاولات دخول خاطئة متعددة" },
+                    { "SCHEDULE_CONFLICT_ROOM", "تعارض في القاعة: الغرفة مشغولة في هذا الوقت" },
+                    { "EXAM_ALREADY_PUBLISHED", "لا يمكن تعديل امتحان تم نشره بالفعل" },
+                    { "INSUFFICIENT_HALL_CAPACITY", "سعة القاعة أقل من عدد الطلاب المقيدين" },
+                    { "DEPARTMENT_IN_USE", "لا يمكن حذف قسم به طلاب أو مقررات نشطة" },
+                    { "FACULTY_IN_USE", "لا يمكن حذف كلية بها طلاب أو أقسام نشطة" }
                 }
             },
             {
@@ -154,7 +171,24 @@ namespace IbnElgm3a.Services.Localization
                     { "SAME_PASSWORD_NOT_ALLOWED", "New password cannot be the same as the current password." },
                     { "EXAM_PUBLISHED", "Exam published successfully." },
                     { "ANNOUNCEMENT_UPDATED", "Announcement updated successfully." },
-                    { "ANNOUNCEMENT_DELETED", "Announcement deleted successfully." }
+                    { "ANNOUNCEMENT_DELETED", "Announcement deleted successfully." },
+                    
+                    // Added for v2.0
+                    { "FACULTY_CODE_TAKEN", "Faculty code already exists." },
+                    { "FACULTY_NAME_TAKEN", "Faculty name already exists." },
+                    { "INVALID_FACULTY", "Faculty does not exist." },
+                    { "INVALID_DEPT", "Department does not exist or does not belong to this faculty." },
+                    { "PERMISSION_ESCALATION", "You cannot grant permissions you do not possess." },
+                    { "ALREADY_SUB_ADMIN", "User is already a sub-admin." },
+                    { "EMAIL_TAKEN", "Email address already registered." },
+                    { "NATIONAL_ID_TAKEN", "National ID already registered." },
+                    { "PASSWORD_EXPIRED", "Password has expired. Please renew your password." },
+                    { "ACCOUNT_LOCKED", "Account locked due to too many failed attempts." },
+                    { "SCHEDULE_CONFLICT_ROOM", "Room conflict: The hall is already booked for this time." },
+                    { "EXAM_ALREADY_PUBLISHED", "Cannot edit an exam that is already published." },
+                    { "INSUFFICIENT_HALL_CAPACITY", "Hall capacity is less than the number of enrolled students." },
+                    { "DEPARTMENT_IN_USE", "Cannot delete department with active students or courses." },
+                    { "FACULTY_IN_USE", "Cannot delete faculty with active students or departments." }
                 }
             }
         };

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
-namespace IbnElgm3a.Model.Data
+namespace IbnElgm3a.Models.Data
 {
     public class Faculty : BaseEntity
     {

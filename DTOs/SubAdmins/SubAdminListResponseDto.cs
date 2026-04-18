@@ -1,5 +1,6 @@
 using IbnElgm3a.Enums;
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace IbnElgm3a.DTOs.SubAdmins
@@ -37,5 +38,8 @@ namespace IbnElgm3a.DTOs.SubAdmins
         [JsonPropertyName("last_active_at")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public DateTimeOffset? LastActiveAt { get; set; }
+
+        [JsonPropertyName("permissions")]
+        public List<string> Permissions { get; set; } = new();
     }
 }

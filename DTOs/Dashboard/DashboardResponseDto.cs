@@ -11,6 +11,9 @@ namespace IbnElgm3a.DTOs.Dashboard
         [JsonPropertyName("semester")]
         public SemesterInfoDto Semester { get; set; } = new SemesterInfoDto();
 
+        [JsonPropertyName("faculties")]
+        public List<FacultySummaryDto> Faculties { get; set; } = new List<FacultySummaryDto>();
+
         [JsonPropertyName("alerts")]
         public List<AlertDto> Alerts { get; set; } = new List<AlertDto>();
 

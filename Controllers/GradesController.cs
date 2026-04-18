@@ -1,7 +1,7 @@
 using IbnElgm3a.DTOs.Academics.Grades;
 using IbnElgm3a.Enums;
-using IbnElgm3a.Model;
-using IbnElgm3a.Model.Data;
+using IbnElgm3a.Models;
+using IbnElgm3a.Models.Data;
 using IbnElgm3a.Models;
 using IbnElgm3a.Filters;
 using IbnElgm3a.Services.Localization;

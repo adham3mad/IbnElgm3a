@@ -1,7 +1,7 @@
 using IbnElgm3a.DTOs.Audits;
 using IbnElgm3a.Enums;
-using IbnElgm3a.Model;
-using IbnElgm3a.Model.Data;
+using IbnElgm3a.Models;
+using IbnElgm3a.Models.Data;
 using IbnElgm3a.Models;
 using IbnElgm3a.Filters;
 using IbnElgm3a.Services.Localization;
@@ -48,13 +48,13 @@ namespace IbnElgm3a.Controllers
                 .Take(limit)
                 .Select(a => new AuditLogResponseDto
                 {
-                    Id = 0, // Placeholder as Id is long/int usually, need to check BaseEntity
+                    Id = 0, // Placeholder
                     UserId = a.UserId,
-                    UserName = a.User != null ? a.User.Name : null,
+                    ActorName = a.User != null ? a.User.Name : null,
                     Action = a.Action,
-                    EntityName = a.EntityName,
+                    Entity = a.EntityName,
                     EntityId = a.EntityId,
-                    Timestamp = a.CreatedAt,
+                    PerformedAt = a.CreatedAt,
                     Details = $"Old: {a.OldValue}, New: {a.NewValue}",
                     Description = a.Description,
                     Icon = a.Icon

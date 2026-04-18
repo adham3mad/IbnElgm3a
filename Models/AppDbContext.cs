@@ -1,12 +1,14 @@
 using IbnElgm3a.Enums;
-using IbnElgm3a.Model.Data;
 using IbnElgm3a.Models.Data;
 using Microsoft.EntityFrameworkCore;
-
 using IbnElgm3a.Models.Converters;
 using IbnElgm3a.Services;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Linq;
+using System;
 
-namespace IbnElgm3a.Model
+namespace IbnElgm3a.Models
 {
     public class AppDbContext : DbContext
     {
@@ -48,6 +50,7 @@ namespace IbnElgm3a.Model
 
         // Features
         public DbSet<Complaint> Complaints => Set<Complaint>();
+        public DbSet<ComplaintNote> ComplaintNotes => Set<ComplaintNote>();
         public DbSet<SubAdmin> SubAdmins => Set<SubAdmin>();
         public DbSet<Announcement> Announcements => Set<Announcement>();
         public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
@@ -73,6 +76,7 @@ namespace IbnElgm3a.Model
             model.HasPostgresEnum<ExamType>();
             model.HasPostgresEnum<ExamStatus>();
             model.HasPostgresEnum<SubAdminScopeType>();
+            model.HasPostgresEnum<SeatingStrategy>();
             model.HasPostgresEnum<AnnouncementTargetType>();
             model.HasPostgresEnum<AnnouncementPriority>();
             model.HasPostgresEnum<CalendarEventType>();
@@ -82,6 +86,7 @@ namespace IbnElgm3a.Model
             model.HasPostgresEnum<LetterGrade>();
             model.HasPostgresEnum<AccountType>();
             model.HasPostgresEnum<AppType>();
+            model.HasPostgresEnum<RoomType>();
 
             // Unique Constraints
             model.Entity<User>().HasIndex(x => x.Email).IsUnique();
@@ -162,6 +167,55 @@ namespace IbnElgm3a.Model
                 .HasOne(p => p.Feature)
                 .WithMany(f => f.Permissions)
                 .HasForeignKey(p => p.FeatureId);
+
+            model.Entity<ComplaintNote>()
+                .HasOne(n => n.Complaint)
+                .WithMany(c => c.InternalNotes)
+                .HasForeignKey(n => n.ComplaintId);
+        }
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            var entries = ChangeTracker
+                .Entries()
+                .Where(e => e.Entity is BaseEntity && (
+                        e.State == EntityState.Added
+                        || e.State == EntityState.Modified));
+
+            foreach (var entityEntry in entries)
+            {
+                var entity = (BaseEntity)entityEntry.Entity;
+                if (entityEntry.State == EntityState.Added)
+                {
+                    entity.CreatedAt = DateTimeOffset.UtcNow;
+                }
+                
+                entity.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+
+            return base.SaveChangesAsync(cancellationToken);
+        }
+
+        public override int SaveChanges()
+        {
+            var entries = ChangeTracker
+                .Entries()
+                .Where(e => e.Entity is BaseEntity && (
+                        e.State == EntityState.Added
+                        || e.State == EntityState.Modified));
+
+            foreach (var entityEntry in entries)
+            {
+                var entity = (BaseEntity)entityEntry.Entity;
+                if (entityEntry.State == EntityState.Added)
+                {
+                    entity.CreatedAt = DateTimeOffset.UtcNow;
+                }
+
+                entity.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+
+            return base.SaveChanges();
         }
     }
 }

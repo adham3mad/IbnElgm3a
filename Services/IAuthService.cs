@@ -13,6 +13,7 @@ namespace IbnElgm3a.Services
         Task<string?> VerifyOtpAsync(VerifyOtpRequestDto request);
         Task<bool> ResetPasswordAsync(ResetPasswordRequestDto request);
 
+        Task<string> GetBiometricChallengeAsync();
         Task<LoginResponseDto?> BiometricLoginAsync(BiometricLoginRequestDto request);
         Task<bool> RegisterBiometricAsync(BiometricRegisterRequestDto request, string userId);
     }

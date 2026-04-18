@@ -11,20 +11,20 @@ namespace IbnElgm3a.DTOs.Audits
         [JsonPropertyName("user_id")]
         public string? UserId { get; set; }
 
-        [JsonPropertyName("user_name")]
-        public string? UserName { get; set; }
+        [JsonPropertyName("actor_name")]
+        public string? ActorName { get; set; }
 
         [JsonPropertyName("action")]
         public string Action { get; set; } = string.Empty;
 
-        [JsonPropertyName("entity_name")]
-        public string EntityName { get; set; } = string.Empty;
+        [JsonPropertyName("entity")]
+        public string Entity { get; set; } = string.Empty;
 
         [JsonPropertyName("entity_id")]
         public string? EntityId { get; set; }
 
-        [JsonPropertyName("timestamp")]
-        public DateTimeOffset Timestamp { get; set; }
+        [JsonPropertyName("performed_at")]
+        public DateTimeOffset PerformedAt { get; set; }
 
         [JsonPropertyName("details")]
         public string? Details { get; set; }

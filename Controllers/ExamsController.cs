@@ -10,8 +10,8 @@ using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using IbnElgm3a.Model;
-using IbnElgm3a.Model.Data;
+using IbnElgm3a.Models;
+using IbnElgm3a.Models.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace IbnElgm3a.Controllers
@@ -67,7 +67,10 @@ namespace IbnElgm3a.Controllers
                     Hall = e.Hall != null ? new RoomResponseDto { Id = e.Hall.Id, Name = e.Hall.Name, Capacity = e.Hall.Capacity } : null,
                     EnrolledCount = e.EnrolledCount,
                     Status = e.Status,
-                    HasSeatPlan = e.HasSeatPlan
+                    HasSeatPlan = e.HasSeatPlan,
+                    SeatingStrategy = e.SeatingStrategy,
+                    SeatPlanPdfUrl = e.SeatPlanPdfUrl,
+                    PublishedAt = e.PublishedAt
                 }).ToListAsync();
 
             return Ok(ApiResponse<List<ExamListResponseDto>>.CreateSuccess(exams));
@@ -134,15 +137,20 @@ namespace IbnElgm3a.Controllers
             var exam = await _context.Exams.Include(e => e.Hall).FirstOrDefaultAsync(e => e.Id == exam_id);
             if (exam == null) return NotFound(ApiResponse<object>.CreateError("EXAM_NOT_FOUND", _localizer.GetMessage("EXAM_NOT_FOUND")));
 
-            // Seating logic placeholder: marks as having a plan
+            // Use strategy from request or model
+            SeatingStrategy strategy = request.Strategy ?? exam.SeatingStrategy;
+            exam.SeatingStrategy = strategy;
             exam.HasSeatPlan = true;
+            exam.SeatPlanPdfUrl = $"https://cdn.masaar.edu.eg/layouts/{exam_id}.pdf";
+            
             await _context.SaveChangesAsync();
 
             var resp = new
             {
-                assigned_count = exam.EnrolledCount > 0 ? exam.EnrolledCount : 50, // Placeholder count
+                assigned_count = exam.EnrolledCount > 0 ? exam.EnrolledCount : 50,
                 hall_id = exam.HallId,
-                layout_url = $"https://cdn.masaar.edu.eg/layouts/{exam_id}.pdf"
+                layout_url = exam.SeatPlanPdfUrl,
+                strategy = strategy.ToString()
             };
 
             return Ok(ApiResponse<object>.CreateSuccess(resp));
@@ -170,7 +178,10 @@ namespace IbnElgm3a.Controllers
                 Hall = exam.Hall != null ? new RoomResponseDto { Id = exam.Hall.Id, Name = exam.Hall.Name, Capacity = exam.Hall.Capacity } : null,
                 EnrolledCount = exam.EnrolledCount,
                 Status = exam.Status,
-                HasSeatPlan = exam.HasSeatPlan
+                HasSeatPlan = exam.HasSeatPlan,
+                SeatingStrategy = exam.SeatingStrategy,
+                SeatPlanPdfUrl = exam.SeatPlanPdfUrl,
+                PublishedAt = exam.PublishedAt
             };
 
             return Ok(ApiResponse<ExamListResponseDto>.CreateSuccess(dto));
@@ -191,6 +202,7 @@ namespace IbnElgm3a.Controllers
             if (request.DurationMinutes.HasValue) exam.DurationMinutes = request.DurationMinutes.Value;
             if (!string.IsNullOrEmpty(request.HallId)) exam.HallId = request.HallId;
             if (request.Status.HasValue) exam.Status = request.Status.Value;
+            if (request.SeatingStrategy.HasValue) exam.SeatingStrategy = request.SeatingStrategy.Value;
 
             await _context.SaveChangesAsync();
             return Ok(ApiResponse<object>.CreateSuccess(new { message = _localizer.GetMessage("UPDATED_SUCCESS") }));

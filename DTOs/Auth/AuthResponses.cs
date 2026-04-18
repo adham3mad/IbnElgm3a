@@ -14,7 +14,10 @@ namespace IbnElgm3a.DTOs.Auth
         public string RefreshToken { get; set; } = string.Empty;
 
         [JsonPropertyName("expires_in")]
-        public DateTime ExpiresIn { get; set; }
+        public int ExpiresIn { get; set; }
+
+        [JsonPropertyName("expires_at")]
+        public DateTime ExpiresAt { get; set; }
     }
 
     public class PermissionDto
@@ -62,10 +65,6 @@ namespace IbnElgm3a.DTOs.Auth
         [JsonPropertyName("full_name")]
         public string FullName { get; set; } = string.Empty;
 
-        [JsonPropertyName("full_name_ar")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string? FullNameAr { get; set; }
-
         [JsonPropertyName("email")]
         public string Email { get; set; } = string.Empty;
 
@@ -73,27 +72,19 @@ namespace IbnElgm3a.DTOs.Auth
         public string? AvatarUrl { get; set; }
 
         [JsonPropertyName("faculty_id")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? FacultyId { get; set; }
 
-        [JsonPropertyName("department_id")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string? DepartmentId { get; set; }
+        [JsonPropertyName("scope_type")]
+        public SubAdminScopeType? ScopeType { get; set; }
 
-        [JsonPropertyName("student_id")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string? StudentId { get; set; }
+        [JsonPropertyName("scope_id")]
+        public string? ScopeId { get; set; }
 
-
-        [JsonPropertyName("role_details")]
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public RoleDto? RoleDetails { get; set; }
+        [JsonPropertyName("permissions")]
+        public List<string> Permissions { get; set; } = new();
 
         [JsonPropertyName("must_change_pw")]
         public bool MustChangePw { get; set; }
-
-        [JsonPropertyName("profile_complete")]
-        public bool ProfileComplete { get; set; }
     }
 
     public class LoginResponseDto

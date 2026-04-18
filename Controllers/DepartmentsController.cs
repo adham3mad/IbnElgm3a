@@ -6,8 +6,8 @@ using IbnElgm3a.Models;
 using IbnElgm3a.Services.Localization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using IbnElgm3a.Model;
-using IbnElgm3a.Model.Data;
+using IbnElgm3a.Models;
+using IbnElgm3a.Models.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace IbnElgm3a.Controllers

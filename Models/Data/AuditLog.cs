@@ -1,4 +1,4 @@
-namespace IbnElgm3a.Model.Data
+namespace IbnElgm3a.Models.Data
 {
     public class AuditLog : BaseEntity
     {

@@ -2,7 +2,7 @@ using IbnElgm3a.Enums;
 using System;
 using System.Collections.Generic;
 
-namespace IbnElgm3a.Model.Data
+namespace IbnElgm3a.Models.Data
 {
     public class Student : BaseEntity
     {

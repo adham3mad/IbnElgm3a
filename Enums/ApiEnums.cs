@@ -165,4 +165,25 @@ namespace IbnElgm3a.Enums
         [EnumMember(Value = "registration")]
         Registration
     }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum SeatingStrategy
+    {
+        [EnumMember(Value = "alphabetical")]
+        Alphabetical,
+        [EnumMember(Value = "random")]
+        Random,
+        [EnumMember(Value = "by_gpa")]
+        ByGpa
+    }
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum RoomType
+    {
+        [EnumMember(Value = "lecture_hall")]
+        LectureHall,
+        [EnumMember(Value = "lab")]
+        Lab,
+        [EnumMember(Value = "tutorial_room")]
+        TutorialRoom
+    }
 }

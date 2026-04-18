@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using IbnElgm3a.Model;
+using IbnElgm3a.Models;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
 

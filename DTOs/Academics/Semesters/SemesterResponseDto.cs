@@ -17,7 +17,16 @@ namespace IbnElgm3a.DTOs.Academics.Semesters
         [JsonPropertyName("end_date")]
         public DateTimeOffset EndDate { get; set; }
 
-        [JsonPropertyName("is_current")]
-        public bool IsCurrent { get; set; }
+        [JsonPropertyName("is_active")]
+        public bool IsActive { get; set; }
+
+        [JsonPropertyName("total_weeks")]
+        public int TotalWeeks { get; set; }
+
+        [JsonPropertyName("current_week")]
+        public int CurrentWeek { get; set; }
+
+        [JsonPropertyName("next_event")]
+        public string? NextEvent { get; set; }
     }
 }

@@ -1,6 +1,6 @@
 using IbnElgm3a.DTOs.Users;
 using IbnElgm3a.DTOs.Common;
-using IbnElgm3a.Model;
+using IbnElgm3a.Models;
 using IbnElgm3a.Services;
 using IbnElgm3a.Services.Localization;
 using Microsoft.AspNetCore.Authorization;

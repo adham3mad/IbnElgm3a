@@ -1,8 +1,8 @@
 using IbnElgm3a.DTOs.Guardians;
 using IbnElgm3a.DTOs.Common;
 using IbnElgm3a.Enums;
-using IbnElgm3a.Model;
-using IbnElgm3a.Model.Data;
+using IbnElgm3a.Models;
+using IbnElgm3a.Models.Data;
 using IbnElgm3a.Models;
 using IbnElgm3a.Models.Data;
 using IbnElgm3a.Filters;

@@ -12,8 +12,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using IbnElgm3a.Model;
-using IbnElgm3a.Model.Data;
+using IbnElgm3a.Models;
+using IbnElgm3a.Models.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace IbnElgm3a.Controllers
@@ -52,10 +52,24 @@ namespace IbnElgm3a.Controllers
                 RoleId = s.User != null ? (s.User.RoleId ?? string.Empty) : string.Empty,
                 RoleName = s.User != null && s.User.Role != null ? s.User.Role.Name : "No Role",
                 IsActive = s.IsActive,
-                LastActiveAt = s.LastActiveAt
+                LastActiveAt = s.LastActiveAt,
+                Permissions = s.Permissions.Split(',', System.StringSplitOptions.RemoveEmptyEntries).ToList()
             }).ToList();
 
             return Ok(ApiResponse<List<SubAdminListResponseDto>>.CreateSuccess(subAdmins));
+        }
+
+        [HttpPost("{sub_admin_id}/revoke")]
+        [RequirePermission(PermissionEnum.Dashboard_SubAdmins_Delete)]
+        public async Task<IActionResult> RevokeSubAdmin(string sub_admin_id)
+        {
+            var subAdmin = await _context.SubAdmins.FindAsync(sub_admin_id);
+            if (subAdmin == null) return NotFound(ApiResponse<object>.CreateError("SUBADMIN_NOT_FOUND", _localizer.GetMessage("SUBADMIN_NOT_FOUND")));
+
+            subAdmin.IsActive = false;
+            await _context.SaveChangesAsync();
+
+            return Ok(ApiResponse<object>.CreateSuccess(new { revoked_at = System.DateTimeOffset.UtcNow, message = "Access revoked successfully" }));
         }
 
         [HttpPost]
@@ -92,7 +106,8 @@ namespace IbnElgm3a.Controllers
                 UserId = request.UserId,
                 ScopeType = request.ScopeType,
                 ScopeId = request.ScopeId,
-                IsActive = true
+                IsActive = true,
+                Permissions = request.Permissions != null ? string.Join(",", request.Permissions) : string.Empty
             };
 
             // Update user role
@@ -141,6 +156,11 @@ namespace IbnElgm3a.Controllers
 
                 if (request.ScopeType.HasValue) subAdmin.ScopeType = request.ScopeType.Value;
                 if (request.ScopeId != null) subAdmin.ScopeId = request.ScopeId;
+            }
+
+            if (request.Permissions != null)
+            {
+                subAdmin.Permissions = string.Join(",", request.Permissions);
             }
 
             await _context.SaveChangesAsync();

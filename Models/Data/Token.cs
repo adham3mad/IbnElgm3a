@@ -1,7 +1,7 @@
 using IbnElgm3a.Enums;
 using System;
 
-namespace IbnElgm3a.Model.Data
+namespace IbnElgm3a.Models.Data
 {
     public class Token
     {
@@ -17,6 +17,7 @@ namespace IbnElgm3a.Model.Data
 
         public DateTimeOffset ExpiryDate { get; set; }
         public bool IsRevoked { get; set; } = false;
+        public string? Metadata { get; set; }
 
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     }

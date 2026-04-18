@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace IbnElgm3a.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260311034321_AddSystemSettings")]
-    partial class AddSystemSettings
+    [Migration("20260418184404_UpdateToV2_Final")]
+    partial class UpdateToV2_Final
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -26,6 +26,7 @@ namespace IbnElgm3a.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "account_type", new[] { "student", "instructor" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "announcement_priority", new[] { "normal", "urgent" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "announcement_target_type", new[] { "all", "faculty", "department", "role" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "app_type", new[] { "dashboard", "platform" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "calendar_event_type", new[] { "academic", "exam", "holiday", "admin", "registration" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "class_type", new[] { "lecture", "lab", "tutorial" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "complaint_status", new[] { "open", "in_review", "resolved" });
@@ -37,7 +38,9 @@ namespace IbnElgm3a.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "gender", new[] { "male", "female" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "letter_grade", new[] { "a", "a_minus", "b_plus", "b", "b_minus", "c_plus", "c", "d", "f" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "relation_type", new[] { "father", "mother", "guardian", "other" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "room_type", new[] { "lecture_hall", "lab", "tutorial_room" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "schedule_recurrence", new[] { "weekly", "biweekly" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "seating_strategy", new[] { "alphabetical", "random", "by_gpa" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "sub_admin_scope_type", new[] { "university", "faculty", "department" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "user_role", new[] { "student", "instructor", "admin" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "user_status", new[] { "active", "inactive", "at_risk" });
@@ -111,12 +114,18 @@ namespace IbnElgm3a.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
                     b.Property<string>("EntityId")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("EntityName")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Icon")
                         .HasColumnType("text");
 
                     b.Property<string>("NewValue")
@@ -139,6 +148,46 @@ namespace IbnElgm3a.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("AuditLogs");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.BulkImportJob", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FailedRowsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("FileUrl")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Imported")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("Total")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("BulkImportJobs");
                 });
 
             modelBuilder.Entity("IbnElgm3a.Models.Data.CalendarEvent", b =>
@@ -204,9 +253,6 @@ namespace IbnElgm3a.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("InternalNote")
-                        .HasColumnType("text");
-
                     b.Property<DateTimeOffset?>("LastResponseAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -245,6 +291,39 @@ namespace IbnElgm3a.Migrations
                     b.ToTable("Complaints");
                 });
 
+            modelBuilder.Entity("IbnElgm3a.Models.Data.ComplaintNote", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("AuthorId")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ComplaintId")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("ComplaintId");
+
+                    b.ToTable("ComplaintNotes");
+                });
+
             modelBuilder.Entity("IbnElgm3a.Models.Data.Course", b =>
                 {
                     b.Property<string>("Id")
@@ -281,6 +360,9 @@ namespace IbnElgm3a.Migrations
                     b.Property<string>("SemesterId")
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("Syllabus")
+                        .HasColumnType("text");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -313,10 +395,13 @@ namespace IbnElgm3a.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<string>("Code")
-                        .IsRequired()
+                    b.Property<string>("AccentColor")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<int>("CourseCount")
                         .HasColumnType("integer");
@@ -324,9 +409,23 @@ namespace IbnElgm3a.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DepCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("FacultyId")
                         .IsRequired()
                         .HasColumnType("character varying(50)");
+
+                    b.Property<string>("HeadUserId")
+                        .HasColumnType("text");
+
+                    b.Property<int>("InstructorCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LevelCount")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -336,6 +435,9 @@ namespace IbnElgm3a.Migrations
                     b.Property<string>("NameAr")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
 
                     b.Property<int>("StudentCount")
                         .HasColumnType("integer");
@@ -421,6 +523,16 @@ namespace IbnElgm3a.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SeatPlanPdfUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("SeatingStrategy")
+                        .HasColumnType("integer");
+
                     b.Property<string>("SemesterId")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -484,6 +596,16 @@ namespace IbnElgm3a.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<bool>("AcceptAdmissions")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AiChatbotEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Building")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -492,8 +614,19 @@ namespace IbnElgm3a.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("EstablishedYear")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FacCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("HeadOfFacultyId")
                         .HasColumnType("character varying(50)");
+
+                    b.Property<int>("InstructorCount")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -503,6 +636,17 @@ namespace IbnElgm3a.Migrations
                     b.Property<string>("NameAr")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
+
+                    b.Property<string>("OfficialEmail")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("OfficialPhone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("PublicProfile")
+                        .HasColumnType("boolean");
 
                     b.Property<int>("StudentCount")
                         .HasColumnType("integer");
@@ -584,11 +728,13 @@ namespace IbnElgm3a.Migrations
 
                     b.Property<string>("NationalId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("Phone")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -643,6 +789,11 @@ namespace IbnElgm3a.Migrations
                     b.Property<int>("Capacity")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -653,6 +804,9 @@ namespace IbnElgm3a.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -908,7 +1062,7 @@ namespace IbnElgm3a.Migrations
                     b.Property<DateTimeOffset?>("LastActiveAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("PermissionsJson")
+                    b.Property<string>("Permissions")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -970,6 +1124,9 @@ namespace IbnElgm3a.Migrations
                     b.Property<bool>("IsRevoked")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Metadata")
+                        .HasColumnType("text");
+
                     b.Property<string>("TokenType")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1005,6 +1162,9 @@ namespace IbnElgm3a.Migrations
                     b.Property<string>("DepartmentId")
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("DepartmentId1")
+                        .HasColumnType("character varying(50)");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -1035,22 +1195,23 @@ namespace IbnElgm3a.Migrations
                         .HasColumnType("character varying(255)");
 
                     b.Property<string>("NationalId")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Phone")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<bool>("ProfileComplete")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("Role")
-                        .HasColumnType("integer");
+                    b.Property<string>("RoleId")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -1062,10 +1223,15 @@ namespace IbnElgm3a.Migrations
 
                     b.HasIndex("DepartmentId");
 
+                    b.HasIndex("DepartmentId1")
+                        .IsUnique();
+
                     b.HasIndex("Email")
                         .IsUnique();
 
                     b.HasIndex("FacultyId");
+
+                    b.HasIndex("RoleId");
 
                     b.ToTable("Users");
                 });
@@ -1100,7 +1266,10 @@ namespace IbnElgm3a.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
-                    b.Property<DateTimeOffset>("LastLoginAt")
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("LastUsedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
@@ -1115,6 +1284,127 @@ namespace IbnElgm3a.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Devices");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Feature", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NameAr")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Features");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Permission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Ar_Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Ar_Name")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Code")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<int>("FeatureId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Method")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FeatureId");
+
+                    b.ToTable("Permissions");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Role", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DescriptionAr")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NameAr")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Roles");
+                });
+
+            modelBuilder.Entity("PermissionRole", b =>
+                {
+                    b.Property<Guid>("PermissionsId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RolesId")
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("PermissionsId", "RolesId");
+
+                    b.HasIndex("RolesId");
+
+                    b.ToTable("RolePermissions", (string)null);
                 });
 
             modelBuilder.Entity("IbnElgm3a.Models.Data.Announcement", b =>
@@ -1154,6 +1444,25 @@ namespace IbnElgm3a.Migrations
                     b.Navigation("AssignedTo");
 
                     b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.ComplaintNote", b =>
+                {
+                    b.HasOne("IbnElgm3a.Models.Data.User", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("IbnElgm3a.Models.Data.Complaint", "Complaint")
+                        .WithMany("InternalNotes")
+                        .HasForeignKey("ComplaintId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("Complaint");
                 });
 
             modelBuilder.Entity("IbnElgm3a.Models.Data.Course", b =>
@@ -1405,13 +1714,25 @@ namespace IbnElgm3a.Migrations
                         .WithMany()
                         .HasForeignKey("DepartmentId");
 
+                    b.HasOne("IbnElgm3a.Models.Data.Department", null)
+                        .WithOne("Head")
+                        .HasForeignKey("IbnElgm3a.Models.Data.User", "DepartmentId1");
+
                     b.HasOne("IbnElgm3a.Models.Data.Faculty", "Faculty")
                         .WithMany()
                         .HasForeignKey("FacultyId");
 
+                    b.HasOne("IbnElgm3a.Models.Data.Role", "Role")
+                        .WithMany("Users")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Department");
 
                     b.Navigation("Faculty");
+
+                    b.Navigation("Role");
                 });
 
             modelBuilder.Entity("IbnElgm3a.Models.Data.UserDevice", b =>
@@ -1425,6 +1746,37 @@ namespace IbnElgm3a.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Permission", b =>
+                {
+                    b.HasOne("IbnElgm3a.Models.Data.Feature", "Feature")
+                        .WithMany("Permissions")
+                        .HasForeignKey("FeatureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Feature");
+                });
+
+            modelBuilder.Entity("PermissionRole", b =>
+                {
+                    b.HasOne("IbnElgm3a.Models.Data.Permission", null)
+                        .WithMany()
+                        .HasForeignKey("PermissionsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("IbnElgm3a.Models.Data.Role", null)
+                        .WithMany()
+                        .HasForeignKey("RolesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Complaint", b =>
+                {
+                    b.Navigation("InternalNotes");
+                });
+
             modelBuilder.Entity("IbnElgm3a.Models.Data.Course", b =>
                 {
                     b.Navigation("Sections");
@@ -1432,6 +1784,8 @@ namespace IbnElgm3a.Migrations
 
             modelBuilder.Entity("IbnElgm3a.Models.Data.Department", b =>
                 {
+                    b.Navigation("Head");
+
                     b.Navigation("Instructors");
 
                     b.Navigation("Students");
@@ -1485,6 +1839,16 @@ namespace IbnElgm3a.Migrations
                     b.Navigation("Instructor");
 
                     b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Feature", b =>
+                {
+                    b.Navigation("Permissions");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Role", b =>
+                {
+                    b.Navigation("Users");
                 });
 #pragma warning restore 612, 618
         }

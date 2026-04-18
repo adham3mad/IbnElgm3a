@@ -1,6 +1,6 @@
 using IbnElgm3a.Enums;
 
-namespace IbnElgm3a.Model.Data
+namespace IbnElgm3a.Models.Data
 {
     public class StudentGuardian
     {

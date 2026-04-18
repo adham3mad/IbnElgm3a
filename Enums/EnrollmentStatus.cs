@@ -1,4 +1,4 @@
-﻿namespace IbnElgm3a.Enums
+namespace IbnElgm3a.Enums
 {
     public enum EnrollmentStatus
     {

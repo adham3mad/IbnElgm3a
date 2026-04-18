@@ -1,4 +1,4 @@
-﻿namespace IbnElgm3a.Extensions
+namespace IbnElgm3a.Extensions
 {
     public static class HttpContextLangExtensions
     {

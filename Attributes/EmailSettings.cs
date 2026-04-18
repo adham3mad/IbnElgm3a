@@ -1,4 +1,4 @@
-﻿
+
 public class EmailSettings
 {
     public string ApiKey { get; set; } = string.Empty;

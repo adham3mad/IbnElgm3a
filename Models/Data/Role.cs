@@ -1,5 +1,5 @@
 using IbnElgm3a.Enums;
-using IbnElgm3a.Model.Data;
+using IbnElgm3a.Models.Data;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
