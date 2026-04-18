@@ -25,6 +25,6 @@ namespace IbnElgm3a.DTOs.RolesPermissions
         public bool IsActive { get; set; }
 
         [JsonPropertyName("permissions")]
-        public List<PermissionResponseDto> Permissions { get; set; } = new List<PermissionResponseDto>();
+        public List<FeatureResponseDto> Permissions { get; set; } = new();
     }
 }

@@ -232,21 +232,30 @@ namespace IbnElgm3a.Services
             {
                 dto.ScopeType = subAdmin.ScopeType;
                 dto.ScopeId = subAdmin.ScopeId;
-                dto.Permissions = subAdmin.Permissions?.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList() ?? new List<string>();
             }
-            else
+
+            // Permissions based on Role
+            var permissions = user.Role?.Permissions.ToList() ?? new List<Permission>();
+            
+            if (roleEnum == UserRole.Admin)
             {
-                // For main admin or regular users
-                if (roleEnum == UserRole.Admin)
-                {
-                    dto.Permissions = new List<string> { "*" };
-                }
-                else
-                {
-                    // Regular user permissions based on role
-                    dto.Permissions = user.Role?.Permissions.Select(p => p.Name).ToList() ?? new List<string>();
-                }
+                // Super Admin gets all permissions
+                permissions = await _context.Permissions.Include(p => p.Feature).ToListAsync();
             }
+
+            dto.Permissions = permissions
+                .Where(p => p.Feature != null)
+                .GroupBy(p => p.FeatureId)
+                .Select(g => new FeatureDto
+                {
+                    Name = g.First().Feature.Name,
+                    NameAr = g.First().Feature.NameAr,
+                    Permissions = g.Select(p => new PermissionDto
+                    {
+                        Name = p.Name,
+                        NameAr = p.Ar_Name
+                    }).ToList()
+                }).ToList();
 
             return dto;
         }

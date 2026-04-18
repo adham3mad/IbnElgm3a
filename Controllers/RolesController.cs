@@ -33,25 +33,36 @@ namespace IbnElgm3a.Controllers
             if (type.HasValue)
                 query = query.Where(r => r.Type == type.Value);
 
-            var roles = await query
+            var dbRoles = await query
                 .Include(r => r.Permissions)
-                .Select(r => new RoleResponseDto
-                {
-                    Id = r.Id,
-                    Name = r.Name,
-                    NameAr = r.NameAr,
-                    Description = r.Description,
-                    Type = r.Type,
-                    IsActive = r.IsActive,
-                    Permissions = r.Permissions.Select(p => new PermissionResponseDto
+                    .ThenInclude(p => p.Feature)
+                .ToListAsync();
+
+            var roles = dbRoles.Select(r => new RoleResponseDto
+            {
+                Id = r.Id,
+                Name = r.Name,
+                NameAr = r.NameAr,
+                Description = r.Description,
+                Type = r.Type,
+                IsActive = r.IsActive,
+                Permissions = r.Permissions
+                    .GroupBy(p => p.FeatureId)
+                    .Select(g => new FeatureResponseDto
                     {
-                        Id = p.Id,
-                        Name = p.Name,
-                        ArName = p.Ar_Name,
-                        Description = p.Description,
-                        ArDescription = p.Ar_Description
+                        Id = g.Key,
+                        Name = g.First().Feature.Name,
+                        NameAr = g.First().Feature.NameAr,
+                        Permissions = g.Select(p => new PermissionResponseDto
+                        {
+                            Id = p.Id,
+                            Name = p.Name,
+                            ArName = p.Ar_Name,
+                            Description = p.Description,
+                            ArDescription = p.Ar_Description
+                        }).ToList()
                     }).ToList()
-                }).ToListAsync();
+            }).ToList();
 
             return Ok(ApiResponse<List<RoleResponseDto>>.CreateSuccess(roles));
         }

@@ -2,6 +2,7 @@ using IbnElgm3a.Enums;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using IbnElgm3a.DTOs.RolesPermissions;
 
 namespace IbnElgm3a.DTOs.SubAdmins
 {
@@ -40,6 +41,6 @@ namespace IbnElgm3a.DTOs.SubAdmins
         public DateTimeOffset? LastActiveAt { get; set; }
 
         [JsonPropertyName("permissions")]
-        public List<string> Permissions { get; set; } = new();
+        public List<FeatureResponseDto> Permissions { get; set; } = new();
     }
 }

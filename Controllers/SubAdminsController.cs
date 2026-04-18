@@ -38,7 +38,8 @@ namespace IbnElgm3a.Controllers
         {
             var dbSubAdmins = await _context.SubAdmins
                 .Include(s => s.User)
-                .ThenInclude(u => u!.Role)
+                    .ThenInclude(u => u!.Role)
+                        .ThenInclude(r => r!.Permissions)
                 .ToListAsync();
 
             var subAdmins = dbSubAdmins.Select(s => new SubAdminListResponseDto
@@ -53,7 +54,20 @@ namespace IbnElgm3a.Controllers
                 RoleName = s.User != null && s.User.Role != null ? s.User.Role.Name : "No Role",
                 IsActive = s.IsActive,
                 LastActiveAt = s.LastActiveAt,
-                Permissions = s.Permissions.Split(',', System.StringSplitOptions.RemoveEmptyEntries).ToList()
+                Permissions = s.User?.Role?.Permissions
+                    .GroupBy(p => p.FeatureId)
+                    .Select(g => new FeatureResponseDto
+                    {
+                        Id = g.Key,
+                        Name = g.First().Feature.Name,
+                        NameAr = g.First().Feature.NameAr,
+                        Permissions = g.Select(p => new PermissionResponseDto
+                        {
+                            Id = p.Id,
+                            Name = p.Name,
+                            ArName = p.Ar_Name
+                        }).ToList()
+                    }).ToList() ?? new List<FeatureResponseDto>()
             }).ToList();
 
             return Ok(ApiResponse<List<SubAdminListResponseDto>>.CreateSuccess(subAdmins));
@@ -106,14 +120,24 @@ namespace IbnElgm3a.Controllers
                 UserId = request.UserId,
                 ScopeType = request.ScopeType,
                 ScopeId = request.ScopeId,
-                IsActive = true,
-                Permissions = request.Permissions != null ? string.Join(",", request.Permissions) : string.Empty
+                IsActive = true
             };
 
             // Update user role
             if (!string.IsNullOrEmpty(request.RoleId))
             {
                 user.RoleId = request.RoleId;
+                
+                // Sync Role Permissions
+                if (request.PermissionIds != null)
+                {
+                    var role = await _context.Roles.Include(r => r.Permissions).FirstOrDefaultAsync(r => r.Id == request.RoleId);
+                    if (role != null)
+                    {
+                        var perms = await _context.Permissions.Where(p => request.PermissionIds.Contains(p.Id)).ToListAsync();
+                        role.Permissions = perms;
+                    }
+                }
             }
             
             _context.SubAdmins.Add(subAdmin);
@@ -158,9 +182,18 @@ namespace IbnElgm3a.Controllers
                 if (request.ScopeId != null) subAdmin.ScopeId = request.ScopeId;
             }
 
-            if (request.Permissions != null)
+            if (request.PermissionIds != null)
             {
-                subAdmin.Permissions = string.Join(",", request.Permissions);
+                var roleId = request.RoleId ?? subAdmin.User?.RoleId;
+                if (!string.IsNullOrEmpty(roleId))
+                {
+                    var role = await _context.Roles.Include(r => r.Permissions).FirstOrDefaultAsync(r => r.Id == roleId);
+                    if (role != null)
+                    {
+                        var perms = await _context.Permissions.Where(p => request.PermissionIds.Contains(p.Id)).ToListAsync();
+                        role.Permissions = perms;
+                    }
+                }
             }
 
             await _context.SaveChangesAsync();

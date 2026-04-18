@@ -81,7 +81,7 @@ namespace IbnElgm3a.DTOs.Auth
         public string? ScopeId { get; set; }
 
         [JsonPropertyName("permissions")]
-        public List<string> Permissions { get; set; } = new();
+        public List<FeatureDto> Permissions { get; set; } = new();
 
         [JsonPropertyName("must_change_pw")]
         public bool MustChangePw { get; set; }

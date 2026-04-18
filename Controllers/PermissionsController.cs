@@ -1,4 +1,5 @@
 using IbnElgm3a.DTOs;
+using IbnElgm3a.DTOs.RolesPermissions;
 using IbnElgm3a.Enums;
 using IbnElgm3a.Models;
 using IbnElgm3a.Models.Data;
@@ -29,17 +30,30 @@ namespace IbnElgm3a.Controllers
         [RequirePermission(PermissionEnum.Dashboard_Permissions_Read)]
         public async Task<IActionResult> GetPermissions()
         {
-            var permissions = await _context.Permissions
-                .OrderBy(p => p.Code)
-                .Select(p => new 
-                {
-                    id = p.Id,
-                    code = p.Code,
-                    name = p.Name,
-                    description = p.Description
-                }).ToListAsync();
+            var dbPermissions = await _context.Permissions
+                .Include(p => p.Feature)
+                .OrderBy(p => p.Feature.Name)
+                .ThenBy(p => p.Code)
+                .ToListAsync();
 
-            return Ok(ApiResponse<object>.CreateSuccess(permissions));
+            var grouped = dbPermissions
+                .GroupBy(p => p.FeatureId)
+                .Select(g => new FeatureResponseDto
+                {
+                    Id = g.Key,
+                    Name = g.First().Feature.Name,
+                    NameAr = g.First().Feature.NameAr,
+                    Permissions = g.Select(p => new PermissionResponseDto
+                    {
+                        Id = p.Id,
+                        Name = p.Name,
+                        ArName = p.Ar_Name,
+                        Description = p.Description,
+                        ArDescription = p.Ar_Description
+                    }).ToList()
+                }).ToList();
+
+            return Ok(ApiResponse<List<FeatureResponseDto>>.CreateSuccess(grouped));
         }
     }
 }

@@ -1,5 +1,7 @@
 using IbnElgm3a.Enums;
 using System.Text.Json.Serialization;
+using System;
+using System.Collections.Generic;
 
 namespace IbnElgm3a.DTOs.SubAdmins
 {
@@ -18,6 +20,6 @@ namespace IbnElgm3a.DTOs.SubAdmins
         public bool? IsActive { get; set; }
 
         [JsonPropertyName("permissions")]
-        public List<string>? Permissions { get; set; }
+        public List<Guid>? PermissionIds { get; set; }
     }
 }

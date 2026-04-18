@@ -57,8 +57,6 @@ namespace IbnElgm3a.Models.Data
         public bool IsActive { get; set; } = true;
         public DateTimeOffset? LastActiveAt { get; set; }
         
-        // Permissions are stored as a comma-separated string for simplicity in the current structure
-        public string Permissions { get; set; } = string.Empty;
     }
 
     public class Announcement : BaseEntity

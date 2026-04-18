@@ -58,9 +58,26 @@ namespace IbnElgm3a.Middleware
             // Check user permission in DB
             var permissionCode = requirePermissionAttribute.PermissionCode;
 
-            var hasPermission = await dbContext.Users
-                .Where(u => u.Id == userId && u.IsActive)
-                .AnyAsync(u => u.Role != null && u.Role.Permissions.Any(p => p.Code == permissionCode));
+            var user = await dbContext.Users
+                .Include(u => u.Role)
+                    .ThenInclude(r => r!.Permissions)
+                .FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
+
+            if (user == null)
+            {
+                await ReturnForbidden(context, "FORBIDDEN", _localizer.GetMessage("FORBIDDEN"));
+                return;
+            }
+
+            // 1. Super Admin Shortcut
+            if (user.Role?.Name?.Equals("admin", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                await _next(context);
+                return;
+            }
+
+            // 2. Check Role Permissions
+            bool hasPermission = user.Role?.Permissions.Any(p => p.Code == permissionCode) == true;
 
             if (!hasPermission)
             {
