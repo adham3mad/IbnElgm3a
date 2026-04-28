@@ -51,6 +51,7 @@ namespace IbnElgm3a.Models
         // Features
         public DbSet<Complaint> Complaints => Set<Complaint>();
         public DbSet<ComplaintNote> ComplaintNotes => Set<ComplaintNote>();
+        public DbSet<ComplaintMessage> ComplaintMessages => Set<ComplaintMessage>();
         public DbSet<SubAdmin> SubAdmins => Set<SubAdmin>();
         public DbSet<Announcement> Announcements => Set<Announcement>();
         public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
@@ -60,6 +61,13 @@ namespace IbnElgm3a.Models
         public DbSet<Token> Tokens => Set<Token>();
         public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
         public DbSet<BulkImportJob> BulkImportJobs => Set<BulkImportJob>();
+        
+        // Student Portal
+        public DbSet<Notification> Notifications => Set<Notification>();
+        public DbSet<RegistrationDraft> RegistrationDrafts => Set<RegistrationDraft>();
+        public DbSet<RegistrationDraftCourse> RegistrationDraftCourses => Set<RegistrationDraftCourse>();
+        public DbSet<RegistrationRequest> RegistrationRequests => Set<RegistrationRequest>();
+        public DbSet<RegistrationRequestCourse> RegistrationRequestCourses => Set<RegistrationRequestCourse>();
 
         protected override void OnModelCreating(ModelBuilder model)
         {
@@ -136,6 +144,11 @@ namespace IbnElgm3a.Models
                 .WithMany()
                 .HasForeignKey(f => f.HeadOfFacultyId);
 
+            model.Entity<Department>()
+                .HasOne(d => d.Head)
+                .WithMany()
+                .HasForeignKey(d => d.HeadUserId);
+
             model.Entity<Enrollment>()
                 .HasOne(e => e.Grade)
                 .WithOne(g => g.Enrollment)
@@ -172,6 +185,25 @@ namespace IbnElgm3a.Models
                 .HasOne(n => n.Complaint)
                 .WithMany(c => c.InternalNotes)
                 .HasForeignKey(n => n.ComplaintId);
+
+            // Drafts and Requests
+            model.Entity<RegistrationDraftCourse>()
+                .HasOne(dc => dc.Draft)
+                .WithMany(d => d.Courses)
+                .HasForeignKey(dc => dc.DraftId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            model.Entity<RegistrationRequestCourse>()
+                .HasOne(rc => rc.Request)
+                .WithMany(r => r.Courses)
+                .HasForeignKey(rc => rc.RequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            model.Entity<Notification>()
+                .HasOne(n => n.Student)
+                .WithMany()
+                .HasForeignKey(n => n.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

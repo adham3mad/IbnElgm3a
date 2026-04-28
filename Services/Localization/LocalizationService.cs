@@ -103,7 +103,18 @@ namespace IbnElgm3a.Services.Localization
                     { "EXAM_ALREADY_PUBLISHED", "لا يمكن تعديل امتحان تم نشره بالفعل" },
                     { "INSUFFICIENT_HALL_CAPACITY", "سعة القاعة أقل من عدد الطلاب المقيدين" },
                     { "DEPARTMENT_IN_USE", "لا يمكن حذف قسم به طلاب أو مقررات نشطة" },
-                    { "FACULTY_IN_USE", "لا يمكن حذف كلية بها طلاب أو أقسام نشطة" }
+                    { "FACULTY_IN_USE", "لا يمكن حذف كلية بها طلاب أو أقسام نشطة" },
+                    { "REGISTRATION_SUBMITTED", "تم تقديم طلب التسجيل بنجاح. بانتظار موافقة المرشد الأكاديمي." },
+                    { "COURSE_ALREADY_IN_DRAFT", "المقرر موجود بالفعل في المسودة" },
+                    { "INVALID_COURSE_OR_SECTION", "المقرر أو المجموعة غير صالحة" },
+                    { "DRAFT_NOT_FOUND", "المسودة غير موجودة" },
+                    { "COURSE_NOT_IN_DRAFT", "المقرر غير موجود في المسودة" },
+                    { "NO_UPCOMING_SEMESTER", "لا يوجد فصل دراسي قادم حالياً" },
+                    { "INACTIVE_ACCOUNT", "حساب المستخدم غير نشط" },
+                    { "ALREADY_SUBMITTED", "تم تقديم طلب تسجيل لهذا الفصل بالفعل" },
+                    { "CONFLICTS_WITH", "يتعارض مع" },
+                    { "NOTIFICATION_NOT_FOUND", "التنبيه غير موجود" },
+                    { "NOTIFICATIONS_MARKED_READ", "تم تحديد جميع التنبيهات كمقروءة" }
                 }
             },
             {
@@ -188,7 +199,18 @@ namespace IbnElgm3a.Services.Localization
                     { "EXAM_ALREADY_PUBLISHED", "Cannot edit an exam that is already published." },
                     { "INSUFFICIENT_HALL_CAPACITY", "Hall capacity is less than the number of enrolled students." },
                     { "DEPARTMENT_IN_USE", "Cannot delete department with active students or courses." },
-                    { "FACULTY_IN_USE", "Cannot delete faculty with active students or departments." }
+                    { "FACULTY_IN_USE", "Cannot delete faculty with active students or departments." },
+                    { "REGISTRATION_SUBMITTED", "Registration submitted successfully. Awaiting academic advisor approval." },
+                    { "COURSE_ALREADY_IN_DRAFT", "Course already in draft." },
+                    { "INVALID_COURSE_OR_SECTION", "Invalid course or section." },
+                    { "DRAFT_NOT_FOUND", "Draft not found." },
+                    { "COURSE_NOT_IN_DRAFT", "Course not in draft." },
+                    { "NO_UPCOMING_SEMESTER", "No upcoming semester found." },
+                    { "INACTIVE_ACCOUNT", "User account is inactive." },
+                    { "ALREADY_SUBMITTED", "Registration request already submitted for this semester." },
+                    { "CONFLICTS_WITH", "conflicts with" },
+                    { "NOTIFICATION_NOT_FOUND", "Notification not found." },
+                    { "NOTIFICATIONS_MARKED_READ", "All notifications marked as read." }
                 }
             }
         };

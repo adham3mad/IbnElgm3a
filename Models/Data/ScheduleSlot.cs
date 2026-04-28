@@ -22,8 +22,8 @@ namespace IbnElgm3a.Models.Data
 
     public class ScheduleSlot : BaseEntity
     {
-        public string CourseSectionId { get; set; } = string.Empty;
-        public virtual Section? CourseSection { get; set; }
+        public string SectionId { get; set; } = string.Empty;
+        public virtual Section? Section { get; set; }
 
         public string RoomId { get; set; } = string.Empty;
         public virtual Room? Room { get; set; }

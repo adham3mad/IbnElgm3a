@@ -44,7 +44,7 @@ namespace IbnElgm3a
             {
                 options.Filters.Add<IbnElgm3a.Filters.StandardResponseWrapperFilter>();
             });
-            
+
             builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
             builder.Services.AddProblemDetails();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -65,7 +65,7 @@ namespace IbnElgm3a
             }
 
             // Encryption Service
-            builder.Services.AddSingleton<IbnElgm3a.Services.IAesEncryptionService>(sp => 
+            builder.Services.AddSingleton<IbnElgm3a.Services.IAesEncryptionService>(sp =>
             {
                 var key = Environment.GetEnvironmentVariable("DB_ENCRYPTION_KEY") ?? "";
                 return new IbnElgm3a.Services.AesEncryptionService(key);
@@ -145,6 +145,13 @@ namespace IbnElgm3a
                 });
             });
 
+            // Redis Cache
+            builder.Services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = Environment.GetEnvironmentVariable("REDIS_CS") ?? "localhost:6379";
+                options.InstanceName = "IbnElgm3a_";
+            });
+
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("AllowAll",
@@ -182,12 +189,13 @@ namespace IbnElgm3a
             // builder.Services.AddScoped<Email>();
             // builder.Services.AddScoped<GenerateIdentificationNumber>();
             builder.Services.AddScoped<IbnElgm3a.Services.IAuthService, IbnElgm3a.Services.AuthService>();
-            
+
             // Localization
             builder.Services.AddHttpContextAccessor();
             builder.Services.AddSingleton<IbnElgm3a.Services.Localization.ILocalizationService, IbnElgm3a.Services.Localization.LocalizationService>();
             builder.Services.AddScoped<IbnElgm3a.Services.IFileStorageService, IbnElgm3a.Services.LocalFileStorageService>();
             builder.Services.AddScoped<IbnElgm3a.Services.IEmailService, IbnElgm3a.Services.SendGridEmailService>();
+            builder.Services.AddScoped<IbnElgm3a.Services.INotificationService, IbnElgm3a.Services.NotificationService>();
 
             var app = builder.Build();
 
@@ -234,20 +242,21 @@ namespace IbnElgm3a
 
             app.MapControllers();
 
-            // Seed Permissions
-            using (var scope = app.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                try
-                {
-                    await PermissionSeeder.SeedAsync(context);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Seeding failed: {ex.Message}");
-                }
-            }
-
+            /* 
+                        // Seed Permissions (Moved to Endpoint/Manual trigger)
+                        using (var scope = app.Services.CreateScope())
+                        {
+                            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                            try
+                            {
+                                await PermissionSeeder.SeedAsync(context);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Seeding failed: {ex.Message}");
+                            }
+                        }
+            */
             app.Run();
         }
     }

@@ -39,7 +39,10 @@ namespace IbnElgm3a.Enums
         InReview,
         
         [EnumMember(Value = "resolved")]
-        Resolved
+        Resolved,
+        
+        [EnumMember(Value = "closed")]
+        Closed
     }
 
     [JsonConverter(typeof(JsonStringEnumConverter))]

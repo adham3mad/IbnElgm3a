@@ -9,6 +9,8 @@ namespace IbnElgm3a.Models.Data
         public string? NameAr { get; set; }
         public DateTimeOffset StartDate { get; set; }
         public DateTimeOffset EndDate { get; set; }
+        public DateTimeOffset? RegistrationStartDate { get; set; }
+        public DateTimeOffset? RegistrationEndDate { get; set; }
         public bool IsActive { get; set; }
         
         public int CurrentWeek { get; set; }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using IbnElgm3a.Enums;
 
 namespace IbnElgm3a.Models.Data
 {
@@ -24,6 +25,10 @@ namespace IbnElgm3a.Models.Data
         public TimeSpan EndTime { get; set; }
         public string? Room { get; set; }
 
+        public int EnrolledCount { get; set; }
+        public ClassType ClassType { get; set; }
+
+        public virtual ICollection<ScheduleSlot> ScheduleSlots { get; set; } = new List<ScheduleSlot>();
         public virtual ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();
     }
 }

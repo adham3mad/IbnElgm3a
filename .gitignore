@@ -15,11 +15,13 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+*.txt
+tmp/
 # Visual Studio files
 .vs/
 *.user
 *.userosscache
-*.suo
+*.suofhy
 *.sln.docstates
 
 # Visual Studio Code files
