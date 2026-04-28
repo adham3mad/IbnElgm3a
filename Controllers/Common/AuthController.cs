@@ -39,8 +39,8 @@ namespace IbnElgm3a.Controllers.Common
             return Ok(result);
         }
 
+        // [HttpPost("refresh-token")]
         [HttpPost("refresh")]
-        [HttpPost("refresh-token")]
         [AllowAnonymous]
         public async Task<IActionResult> Refresh([FromBody] RefreshRequestDto request)
         {
