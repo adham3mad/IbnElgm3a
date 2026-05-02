@@ -196,6 +196,11 @@ namespace IbnElgm3a
             builder.Services.AddScoped<IbnElgm3a.Services.IFileStorageService, IbnElgm3a.Services.LocalFileStorageService>();
             builder.Services.AddScoped<IbnElgm3a.Services.IEmailService, IbnElgm3a.Services.SendGridEmailService>();
             builder.Services.AddScoped<IbnElgm3a.Services.INotificationService, IbnElgm3a.Services.NotificationService>();
+            builder.Services.AddHttpClient<IbnElgm3a.Services.IRAGBotService, IbnElgm3a.Services.RAGBotService>(client =>
+            {
+                client.Timeout = TimeSpan.FromMinutes(10);
+            });
+
 
             var app = builder.Build();
 
