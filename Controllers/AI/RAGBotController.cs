@@ -25,7 +25,6 @@ namespace IbnElgm3a.Controllers.AI
         }
 
         [HttpPost("chat/stream")]
-        [AllowAnonymous]
         public async Task ChatStream([FromBody] ChatRequestDto request)
         {
             Response.ContentType = "text/event-stream";
@@ -90,7 +89,6 @@ namespace IbnElgm3a.Controllers.AI
         }
 
         [HttpGet("files")]
-        [AllowAnonymous]
         public async Task<IActionResult> GetFiles()
         {
             var response = await _ragBotService.GetFilesAsync();
