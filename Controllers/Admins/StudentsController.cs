@@ -16,7 +16,7 @@ using IbnElgm3a.Services;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/students")]
+    [Route("admin/students")]
     [Authorize]
     public class StudentsController : ControllerBase
     {
@@ -156,7 +156,6 @@ namespace IbnElgm3a.Controllers.Admins
         }
 
         [HttpPost]
-        [AllowAnonymous]
         [RequirePermission(PermissionEnum.Dashboard_Students_Create)]
         public async Task<IActionResult> CreateStudent([FromBody] CreateStudentRequestDto request)
         {

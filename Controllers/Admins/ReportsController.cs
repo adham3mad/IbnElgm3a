@@ -17,7 +17,7 @@ using System.IO;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/reports")]
+    [Route("admin/reports")]
     [Authorize]
     public class ReportsController : ControllerBase
     {

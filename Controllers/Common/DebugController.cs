@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace IbnElgm3a.Controllers.Common
 {
     [ApiController]
-    [Route("v1/debug")]
+    [Route("debug")]
     public class DebugController : ControllerBase
     {
         private readonly AppDbContext _context;

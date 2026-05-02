@@ -54,11 +54,37 @@ namespace IbnElgm3a.Services
                 return null;
             }
 
-            return new LoginResponseDto
+            var response = new LoginResponseDto
             {
                 Tokens = await GenerateTokensAsync(user, request.RememberMe ?? false),
                 User = await MapToAuthUserDtoAsync(user)
             };
+
+            if (user.Role?.Name?.ToLower() == "instructor")
+            {
+                var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == user.Id);
+                var nameParts = user.Name.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+                var firstName = nameParts.Length > 0 ? nameParts[0] : "";
+                var lastName = nameParts.Length > 1 ? nameParts[1] : "";
+                var initials = (firstName.Length > 0 ? firstName.Substring(0, 1) : "") + (lastName.Length > 0 ? lastName.Substring(0, 1) : "");
+
+                response.Instructor = new
+                {
+                    id = user.Id,
+                    first_name = firstName,
+                    last_name = lastName,
+                    full_name = user.Name,
+                    title = instructor?.Rank ?? "",
+                    department = user.Department?.Name ?? "",
+                    email = user.Email,
+                    avatar_url = user.AvatarUrl,
+                    initials = initials.ToUpper(),
+                    office_hours = instructor?.OfficeHours,
+                    bio = instructor?.Bio
+                };
+            }
+
+            return response;
         }
 
         public async Task<AuthTokensDto?> RefreshTokenAsync(RefreshRequestDto request)

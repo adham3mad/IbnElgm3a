@@ -4,23 +4,27 @@ using IbnElgm3a.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using IbnElgm3a.DTOs.Complaints;
 using System.Linq;
 using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
+using IbnElgm3a.Services.Localization;
 
 namespace IbnElgm3a.Controllers.Students
 {
     [ApiController]
     [Route("student/complaints")]
-    [Authorize]
+    [Authorize(Roles = "student")]
     public class StudentComplaintsController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly ILocalizationService _localizer;
 
-        public StudentComplaintsController(AppDbContext context)
+        public StudentComplaintsController(AppDbContext context, ILocalizationService localizer)
         {
             _context = context;
+            _localizer = localizer;
         }
 
         private string GetUserId() => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
@@ -54,7 +58,7 @@ namespace IbnElgm3a.Controllers.Students
                     title = c.Title,
                     description = c.Description,
                     status = c.Status.ToString().ToLower(),
-                    has_unread_reply = false, // mock
+                    has_unread_reply = c.LastResponseAt > (student.User!.LastActiveAt ?? DateTimeOffset.MinValue),
                     reply_count = _context.ComplaintMessages.Count(m => m.ComplaintId == c.Id),
                     last_reply_at = c.LastResponseAt,
                     created_at = c.CreatedAt
@@ -80,7 +84,7 @@ namespace IbnElgm3a.Controllers.Students
             var complaint = await _context.Complaints
                 .FirstOrDefaultAsync(c => c.Id == id && c.StudentId == student.Id);
 
-            if (complaint == null) return NotFound(new { error = "not_found", message = "Complaint not found" });
+            if (complaint == null) return NotFound(new { error = "not_found", message = _localizer.GetMessage("COMPLAINT_NOT_FOUND") });
 
             var messages = await _context.ComplaintMessages
                 .Include(m => m.Sender)
@@ -129,13 +133,6 @@ namespace IbnElgm3a.Controllers.Students
             return Ok(result);
         }
 
-        public class SubmitComplaintDto
-        {
-            public string Category { get; set; } = string.Empty;
-            public string Title { get; set; } = string.Empty;
-            public string Description { get; set; } = string.Empty;
-        }
-
         [HttpPost]
         public async Task<IActionResult> SubmitComplaint([FromForm] SubmitComplaintDto dto)
         {
@@ -164,13 +161,8 @@ namespace IbnElgm3a.Controllers.Students
                 id = comp.Id,
                 @ref = "#" + comp.TicketNumber,
                 status = "open",
-                message = "Complaint submitted successfully."
+                message = _localizer.GetMessage("COMPLAINT_SUBMITTED")
             });
-        }
-
-        public class ReplyComplaintDto
-        {
-            public string Message { get; set; } = string.Empty;
         }
 
         [HttpPost("{id}/reply")]
@@ -184,7 +176,7 @@ namespace IbnElgm3a.Controllers.Students
             if (complaint == null) return NotFound(new { error = "not_found", message = "Complaint not found" });
 
             if (complaint.Status == ComplaintStatus.Closed)
-                return StatusCode(410, new { error = "gone", message = "Complaint is closed" });
+                return StatusCode(410, new { error = "gone", message = _localizer.GetMessage("COMPLAINT_CLOSED") });
 
             var msg = new ComplaintMessage
             {

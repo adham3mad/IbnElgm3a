@@ -14,7 +14,7 @@ using Microsoft.AspNetCore.Authorization;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/announcements")]
+    [Route("admin/announcements")]
     [Authorize]
     public class AnnouncementsController : ControllerBase
     {

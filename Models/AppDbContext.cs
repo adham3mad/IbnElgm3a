@@ -62,6 +62,17 @@ namespace IbnElgm3a.Models
         public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
         public DbSet<BulkImportJob> BulkImportJobs => Set<BulkImportJob>();
         
+        // Instructor Modules
+        public DbSet<CourseMaterial> CourseMaterials => Set<CourseMaterial>();
+        public DbSet<Assignment> Assignments => Set<Assignment>();
+        public DbSet<AssignmentSubmission> AssignmentSubmissions => Set<AssignmentSubmission>();
+        public DbSet<Quiz> Quizzes => Set<Quiz>();
+        public DbSet<QuizQuestion> QuizQuestions => Set<QuizQuestion>();
+        public DbSet<QuizSubmission> QuizSubmissions => Set<QuizSubmission>();
+        public DbSet<Session> Sessions => Set<Session>();
+        public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
+        
+
         // Student Portal
         public DbSet<Notification> Notifications => Set<Notification>();
         public DbSet<RegistrationDraft> RegistrationDrafts => Set<RegistrationDraft>();
@@ -204,6 +215,15 @@ namespace IbnElgm3a.Models
                 .WithMany()
                 .HasForeignKey(n => n.StudentId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            model.Entity<Notification>()
+                .HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            model.Entity<AnnouncementCourse>()
+                .HasKey(ac => new { ac.AnnouncementId, ac.CourseId });
         }
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

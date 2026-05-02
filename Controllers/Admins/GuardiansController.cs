@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/guardians")]
+    [Route("admin/guardians")]
     [Authorize]
     public class GuardiansController : ControllerBase
     {

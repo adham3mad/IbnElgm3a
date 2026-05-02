@@ -94,5 +94,9 @@ namespace IbnElgm3a.DTOs.Auth
 
         [JsonPropertyName("user")]
         public AuthUserDto User { get; set; } = new AuthUserDto();
+
+        [JsonPropertyName("instructor")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public object? Instructor { get; set; }
     }
 }

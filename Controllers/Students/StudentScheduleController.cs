@@ -12,7 +12,7 @@ namespace IbnElgm3a.Controllers.Students
 {
     [ApiController]
     [Route("student/schedule")]
-    [Authorize]
+    [Authorize(Roles = "student")]
     public class StudentScheduleController : ControllerBase
     {
         private readonly AppDbContext _context;

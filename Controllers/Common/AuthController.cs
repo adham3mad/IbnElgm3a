@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 namespace IbnElgm3a.Controllers.Common
 {
     [ApiController]
-    [Route("v1/auth")]
+    [Route("auth")]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;

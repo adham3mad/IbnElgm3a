@@ -52,10 +52,20 @@ namespace IbnElgm3a.Models.Seeder
             // 9. Seed Exams
             await SeedExamsAsync(context, courses, currentSemester, rooms, instructors);
 
-            // 10. Seed Features Data
+            // 10. Seed Academic Content
+            var assignments = await SeedAssignmentsAsync(context, courses);
+            await SeedAssignmentSubmissionsAsync(context, students, assignments);
+            await SeedQuizzesAsync(context, courses);
+            await SeedCourseMaterialsAsync(context, courses);
+
+            // 11. Seed Attendance & Live Sessions
+            await SeedSessionsAndAttendanceAsync(context, sections, students);
+
+            // 12. Seed Features Data
             await SeedComplaintsAsync(context, students, adminUser);
             await SeedAnnouncementsAsync(context, adminUser);
             await SeedCalendarEventsAsync(context, currentSemester);
+            await SeedNotificationsAsync(context, students);
             await SeedSystemSettingsAsync(context);
 
             await context.SaveChangesAsync();
@@ -358,7 +368,7 @@ namespace IbnElgm3a.Models.Seeder
                 {
                     var enrollment = new Enrollment
                     {
-                        StudentId = student.UserId,
+                        StudentId = student.Id,
                         SectionId = section.Id,
                         Status = EnrollmentStatus.Enrolled,
                         EnrolledAt = DateTimeOffset.UtcNow
@@ -509,6 +519,166 @@ namespace IbnElgm3a.Models.Seeder
                 SemesterId = semester.Id,
                 ColorSeed = "green"
             });
+            await context.SaveChangesAsync();
+        }
+
+        private static async Task<List<Assignment>> SeedAssignmentsAsync(AppDbContext context, List<Course> courses)
+        {
+            if (await context.Assignments.AnyAsync()) return await context.Assignments.ToListAsync();
+
+            var assignments = new List<Assignment>();
+            foreach (var course in courses)
+            {
+                assignments.Add(new Assignment { CourseId = course.Id, Title = "Assignment 1", Description = "Core concepts review", DueDate = DateTime.UtcNow.AddDays(-10), MaxPoints = 100, Status = "published", GradesPublished = true });
+                assignments.Add(new Assignment { CourseId = course.Id, Title = "Midterm Project", Description = "Practical application", DueDate = DateTime.UtcNow.AddDays(5), MaxPoints = 100, Status = "published", GradesPublished = false });
+            }
+            context.Assignments.AddRange(assignments);
+            await context.SaveChangesAsync();
+            return assignments;
+        }
+
+        private static async Task SeedAssignmentSubmissionsAsync(AppDbContext context, List<Student> students, List<Assignment> assignments)
+        {
+            if (await context.AssignmentSubmissions.AnyAsync()) return;
+
+            var random = new Random();
+            foreach (var student in students)
+            {
+                var studentCourses = await context.Enrollments.Where(e => e.StudentId == student.Id).Select(e => e.Section!.CourseId).ToListAsync();
+                var relevantAssignments = assignments.Where(a => studentCourses.Contains(a.CourseId)).ToList();
+
+                foreach (var assignment in relevantAssignments)
+                {
+                    if (assignment.DueDate < DateTime.UtcNow) // Past assignment, graded
+                    {
+                        context.AssignmentSubmissions.Add(new AssignmentSubmission
+                        {
+                            AssignmentId = assignment.Id,
+                            StudentId = student.Id,
+                            Status = "graded",
+                            Score = random.Next(60, 101),
+                            Feedback = "Great work!",
+                            SubmittedAt = assignment.DueDate.AddDays(-1)
+                        });
+                    }
+                    else if (random.Next(0, 2) == 1) // 50% chance of early submission
+                    {
+                        context.AssignmentSubmissions.Add(new AssignmentSubmission
+                        {
+                            AssignmentId = assignment.Id,
+                            StudentId = student.Id,
+                            Status = "submitted",
+                            SubmittedAt = DateTime.UtcNow.AddHours(-5)
+                        });
+                    }
+                }
+            }
+            await context.SaveChangesAsync();
+        }
+
+        private static async Task SeedQuizzesAsync(AppDbContext context, List<Course> courses)
+        {
+            if (await context.Quizzes.AnyAsync()) return;
+
+            foreach (var course in courses)
+            {
+                var quiz = new Quiz { CourseId = course.Id, Title = "Ch 1-3 Quiz", Description = "Short evaluation", TimeLimitMinutes = 15, Status = "published" };
+                context.Quizzes.Add(quiz);
+                await context.SaveChangesAsync();
+
+                context.QuizQuestions.Add(new QuizQuestion { QuizId = quiz.Id, Type = "multiple_choice", Text = "What is the capital of logic?", Points = 10, OrderIndex = 1, OptionsJson = "[\"A\", \"B\", \"C\"]", CorrectOptionIndex = 0 });
+                context.QuizQuestions.Add(new QuizQuestion { QuizId = quiz.Id, Type = "true_false", Text = "Seeding is fun.", Points = 5, OrderIndex = 2, CorrectBoolean = true });
+            }
+            await context.SaveChangesAsync();
+        }
+
+        private static async Task SeedCourseMaterialsAsync(AppDbContext context, List<Course> courses)
+        {
+            if (await context.CourseMaterials.AnyAsync()) return;
+
+            foreach (var course in courses)
+            {
+                for (int w = 1; w <= 4; w++)
+                {
+                    context.CourseMaterials.Add(new CourseMaterial { CourseId = course.Id, WeekNumber = w, Title = $"Week {w} Lecture Notes", Type = "pdf", FileUrl = "https://example.com/notes.pdf", Status = "published" });
+                }
+            }
+            await context.SaveChangesAsync();
+        }
+
+        private static async Task SeedSessionsAndAttendanceAsync(AppDbContext context, List<Section> sections, List<Student> students)
+        {
+            if (await context.Sessions.AnyAsync()) return;
+
+            var random = new Random();
+            var today = DateTime.UtcNow.Date;
+
+            foreach (var section in sections)
+            {
+                var slots = await context.ScheduleSlots.Where(s => s.SectionId == section.Id).ToListAsync();
+                var sectionStudents = students.Where(s => context.Enrollments.Any(e => e.StudentId == s.Id && e.SectionId == section.Id)).ToList();
+
+                // Create sessions for the last 4 weeks based on schedule slots
+                for (int w = 1; w <= 4; w++)
+                {
+                    foreach (var slot in slots)
+                    {
+                        var sessionDate = today.AddDays(-(w * 7)).AddDays((int)slot.Day - (int)today.DayOfWeek);
+                        var session = new Session
+                        {
+                            SectionId = section.Id,
+                            Date = sessionDate,
+                            StartTime = slot.StartTime,
+                            EndTime = slot.EndTime,
+                            Type = slot.Type,
+                            AttendanceStatus = "completed",
+                            RoomName = "Main Hall",
+                            SessionNumber = w,
+                            WeekNumber = w
+                        };
+                        context.Sessions.Add(session);
+                        await context.SaveChangesAsync();
+
+                        foreach (var student in sectionStudents)
+                        {
+                            // 80% attendance rate
+                            var isPresent = random.Next(0, 10) < 8;
+                            context.AttendanceRecords.Add(new AttendanceRecord
+                            {
+                                SessionId = session.Id,
+                                StudentId = student.Id,
+                                Status = isPresent ? "present" : "absent"
+                            });
+                        }
+                    }
+                }
+            }
+            await context.SaveChangesAsync();
+        }
+
+        private static async Task SeedNotificationsAsync(AppDbContext context, List<Student> students)
+        {
+            if (await context.Notifications.AnyAsync()) return;
+
+            foreach (var student in students.Take(5))
+            {
+                context.Notifications.Add(new Notification
+                {
+                    StudentId = student.Id,
+                    Title = "Grade Published",
+                    Body = "Your grade for Assignment 1 has been published.",
+                    Type = "assignment",
+                    CreatedAt = DateTimeOffset.UtcNow.AddHours(-2)
+                });
+                context.Notifications.Add(new Notification
+                {
+                    StudentId = student.Id,
+                    Title = "New Material",
+                    Body = "New lecture notes uploaded for Week 5.",
+                    Type = "course",
+                    CreatedAt = DateTimeOffset.UtcNow.AddDays(-1)
+                });
+            }
             await context.SaveChangesAsync();
         }
 

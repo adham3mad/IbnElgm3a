@@ -11,7 +11,7 @@ namespace IbnElgm3a.Controllers.Students
 {
     [ApiController]
     [Route("student")] // mapped to student/gpa-history, etc.
-    [Authorize]
+    [Authorize(Roles = "student")]
     public class StudentProfileController : ControllerBase
     {
         private readonly AppDbContext _context;

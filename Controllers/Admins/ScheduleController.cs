@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/schedule")]
+    [Route("admin/schedule")]
     [Authorize]
     public class ScheduleController : ControllerBase
     {

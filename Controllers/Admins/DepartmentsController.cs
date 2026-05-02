@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/departments")]
+    [Route("admin/departments")]
     [Authorize]
     public class DepartmentsController : ControllerBase
     {

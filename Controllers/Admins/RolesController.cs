@@ -12,7 +12,7 @@ using IbnElgm3a.Services.Localization;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/roles")]
+    [Route("admin/roles")]
     [Authorize]
     public class RolesController : ControllerBase
     {

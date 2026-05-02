@@ -21,7 +21,7 @@ using IbnElgm3a.Services;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/instructors")]
+    [Route("admin/instructors")]
     [Authorize]
     public class InstructorsController : ControllerBase
     {

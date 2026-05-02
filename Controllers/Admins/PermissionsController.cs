@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/permissions")]
+    [Route("admin/permissions")]
     [Authorize]
     public class PermissionsController : ControllerBase
     {

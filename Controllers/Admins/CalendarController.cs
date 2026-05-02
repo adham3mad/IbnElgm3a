@@ -15,7 +15,7 @@ using IbnElgm3a.Services.Localization;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/calendar")]
+    [Route("admin/calendar")]
     [Authorize]
     public class CalendarController : ControllerBase
     {

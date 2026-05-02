@@ -45,6 +45,7 @@ namespace IbnElgm3a.Models.Data
         public bool ProfileComplete { get; set; }
         public string? InactiveReason { get; set; }
         public bool IsEmailConfirmed { get; internal set; }
+        public DateTimeOffset? LastActiveAt { get; set; }
 
         // Navigation properties for split entities (optional for Masaar but keeping for existing logic)
         public virtual Student? Student { get; set; }

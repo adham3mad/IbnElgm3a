@@ -7,12 +7,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
+using IbnElgm3a.DTOs.Academics;
 
 namespace IbnElgm3a.Controllers.Students
 {
     [ApiController]
     [Route("student/registration")]
-    [Authorize]
+    [Authorize(Roles = "student")]
     public class StudentRegistrationController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -150,12 +151,7 @@ namespace IbnElgm3a.Controllers.Students
             return Ok(result);
         }
 
-        public class DraftCourseDto
-        {
-            public string semester_id { get; set; } = string.Empty;
-            public string course_id { get; set; } = string.Empty;
-            public string section_id { get; set; } = string.Empty;
-        }
+
 
         [HttpPost("draft/courses")]
         public async Task<IActionResult> AddCourseToDraft([FromBody] DraftCourseDto dto)
@@ -344,17 +340,7 @@ namespace IbnElgm3a.Controllers.Students
             }
         }
 
-        public class SubmitRegistrationDto
-        {
-            public string semester_id { get; set; } = string.Empty;
-            public List<CourseSelectionDto> courses { get; set; } = new();
-        }
 
-        public class CourseSelectionDto
-        {
-            public string course_id { get; set; } = string.Empty;
-            public string section_id { get; set; } = string.Empty;
-        }
 
         [HttpPost("validate")]
         public async Task<IActionResult> ValidateRegistration([FromBody] SubmitRegistrationDto dto)

@@ -85,6 +85,29 @@ namespace IbnElgm3a.Models.Data
         public virtual User? CreatedBy { get; set; }
 
         public AnnouncementPriority Priority { get; set; } = AnnouncementPriority.Normal;
+
+        // Instructor API specific properties
+        public string? InstructorId { get; set; }
+        public virtual Instructor? Instructor { get; set; }
+        public string Audience { get; set; } = "all_students"; // all_students, specific_group
+
+        public string? AttachmentUrl { get; set; }
+        public string Status { get; set; } = "published"; // draft, published, scheduled
+        public DateTimeOffset? ScheduledAt { get; set; }
+        public bool SendPush { get; set; } = false;
+
+        public virtual ICollection<AnnouncementCourse> AnnouncementCourses { get; set; } = new List<AnnouncementCourse>();
+    }
+
+    public class AnnouncementCourse : BaseEntity
+    {
+        [Required]
+        public string AnnouncementId { get; set; } = string.Empty;
+        public virtual Announcement? Announcement { get; set; }
+
+        [Required]
+        public string CourseId { get; set; } = string.Empty;
+        public virtual Course? Course { get; set; }
     }
 
     public class CalendarEvent : BaseEntity

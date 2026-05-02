@@ -13,7 +13,7 @@ namespace IbnElgm3a.Controllers.Students
 {
     [ApiController]
     [Route("student/dashboard")]
-    [Authorize]
+    [Authorize(Roles = "student")]
     public class StudentDashboardController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -133,7 +133,11 @@ namespace IbnElgm3a.Controllers.Students
                 {
                     gpa = student.GPA,
                     gpa_change = 0, 
-                    attendance_avg_pct = 0, 
+                    attendance_avg_pct = activeSemester != null ? await _context.AttendanceRecords
+                        .Where(a => a.StudentId == student.Id && a.Session!.Section!.Course!.SemesterId == activeSemester.Id && a.Session.AttendanceStatus == "completed")
+                        .GroupBy(a => a.StudentId)
+                        .Select(g => (double)g.Count(a => a.Status == "present" || a.Status == "late") / _context.Sessions.Count(s => s.Section!.Course!.SemesterId == activeSemester.Id && s.AttendanceStatus == "completed" && _context.Enrollments.Any(e => e.StudentId == student.Id && e.SectionId == s.SectionId)))
+                        .FirstOrDefaultAsync() : 0.0,
                     courses_enrolled = enrollments.Count,
                     credit_hours_enrolled = currentCredits,
                     upcoming_exams_count = upcomingExams.Count,

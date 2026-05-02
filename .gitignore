@@ -14,7 +14,7 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
-
+*.md
 *.txt
 tmp/
 # Visual Studio files

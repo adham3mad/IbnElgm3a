@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/grades")]
+    [Route("admin/grades")]
     [Authorize]
     public class GradesController : ControllerBase
     {

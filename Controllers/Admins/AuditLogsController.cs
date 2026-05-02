@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/audit-logs")]
+    [Route("admin/audit-logs")]
     [Authorize]
     public class AuditLogsController : ControllerBase
     {

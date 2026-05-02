@@ -9,6 +9,7 @@ namespace IbnElgm3a.Models.Data
 
         public string? Rank { get; set; }
         public string? OfficeHours { get; set; }
+        public string? Bio { get; set; }
 
         public string DepartmentId { get; set; } = string.Empty;
         public virtual Department? Department { get; set; }

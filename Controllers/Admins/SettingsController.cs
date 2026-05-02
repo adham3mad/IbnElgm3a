@@ -14,7 +14,7 @@ using System;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/settings")]
+    [Route("admin/settings")]
     [Authorize]
     public class SettingsController : ControllerBase
     {

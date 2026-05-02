@@ -16,7 +16,7 @@ using Microsoft.EntityFrameworkCore;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/complaints")]
+    [Route("admin/complaints")]
     [Authorize]
     public class ComplaintsController : ControllerBase
     {

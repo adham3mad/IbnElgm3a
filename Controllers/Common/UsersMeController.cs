@@ -11,7 +11,7 @@ using System.Security.Claims;
 namespace IbnElgm3a.Controllers.Common
 {
     [ApiController]
-    [Route("v1/users/me")]
+    [Route("users/me")]
     [Authorize]
     public class UsersMeController : ControllerBase
     {
@@ -75,6 +75,32 @@ namespace IbnElgm3a.Controllers.Common
                         sms = false
                     },
                     created_at = user.CreatedAt
+                });
+            }
+            else if (user.Role?.Name?.ToLower() == "instructor")
+            {
+                var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == user.Id);
+                var nameParts = user.Name.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+                var firstName = nameParts.Length > 0 ? nameParts[0] : "";
+                var lastName = nameParts.Length > 1 ? nameParts[1] : "";
+                var initials = (firstName.Length > 0 ? firstName.Substring(0, 1) : "") + (lastName.Length > 0 ? lastName.Substring(0, 1) : "");
+
+                return Ok(new
+                {
+                    data = new
+                    {
+                        id = user.Id,
+                        first_name = firstName,
+                        last_name = lastName,
+                        full_name = user.Name,
+                        title = instructor?.Rank ?? "",
+                        department = user.Department?.Name ?? "",
+                        email = user.Email,
+                        avatar_url = user.AvatarUrl,
+                        initials = initials.ToUpper(),
+                        office_hours = instructor?.OfficeHours,
+                        bio = instructor?.Bio
+                    }
                 });
             }
             else

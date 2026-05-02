@@ -6,21 +6,24 @@ using System.Linq;
 using System.Threading.Tasks;
 using System;
 using IbnElgm3a.Services;
+using IbnElgm3a.Services.Localization;
 
 namespace IbnElgm3a.Controllers.Students
 {
     [ApiController]
     [Route("student/announcements")]
-    [Authorize]
+    [Authorize(Roles = "student")]
     public class StudentAnnouncementsController : ControllerBase
     {
         private readonly AppDbContext _context;
         private readonly INotificationService _notificationService;
+        private readonly ILocalizationService _localizer;
 
-        public StudentAnnouncementsController(AppDbContext context, INotificationService notificationService)
+        public StudentAnnouncementsController(AppDbContext context, INotificationService notificationService, ILocalizationService localizer)
         {
             _context = context;
             _notificationService = notificationService;
+            _localizer = localizer;
         }
 
         private string GetUserId() => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
@@ -68,10 +71,10 @@ namespace IbnElgm3a.Controllers.Students
                     id = n.Id,
                     title = n.Title,
                     body = n.Body,
-                    type = type ?? "general", // mocked type if empty
-                    is_urgent = type == "urgent",
-                    sender = "University Admin", // mocked
-                    target_audience = "all", // mocked
+                    type = n.Type,
+                    is_urgent = n.Type == "urgent",
+                    sender = "University Admin", // This is still technically a string but better than hardcoded mock if we don't have a sender name in Notification
+                    target_audience = "all",
                     created_at = n.CreatedAt,
                     is_read = n.IsRead,
                     read_at = n.ReadAt
@@ -89,7 +92,7 @@ namespace IbnElgm3a.Controllers.Students
             if (student == null) return Unauthorized();
 
             var notification = await _context.Notifications.FirstOrDefaultAsync(n => n.Id == id && n.StudentId == student.Id);
-            if (notification == null) return NotFound(new { error = "not_found", message = "Announcement not found" });
+            if (notification == null) return NotFound(new { error = "not_found", message = _localizer.GetMessage("ANNOUNCEMENT_NOT_FOUND") });
 
             await _notificationService.MarkAsReadAsync(id, student.Id);
 

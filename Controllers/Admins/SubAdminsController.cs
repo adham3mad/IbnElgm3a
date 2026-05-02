@@ -19,7 +19,7 @@ using Microsoft.EntityFrameworkCore;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/sub-admins")]
+    [Route("admin/sub-admins")]
     [Authorize]
     public class SubAdminsController : ControllerBase
     {

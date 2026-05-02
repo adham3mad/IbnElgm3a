@@ -21,9 +21,11 @@ namespace IbnElgm3a.Models.Data
 
         public string? ActionUrl { get; set; }
 
-        [Required]
         [StringLength(50)]
-        public string StudentId { get; set; } = string.Empty;
+        public string? StudentId { get; set; }
         public virtual Student? Student { get; set; }
+
+        public string? UserId { get; set; }
+        public virtual User? User { get; set; }
     }
 }

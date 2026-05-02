@@ -19,7 +19,7 @@ using System.Threading.Tasks;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/users")]
+    [Route("admin/users")]
     [Authorize]
     public class UsersController : ControllerBase
     {

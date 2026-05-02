@@ -12,7 +12,7 @@ using IbnElgm3a.Models;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/dashboard")]
+    [Route("admin/dashboard")]
     [Authorize]
     public class DashboardController : ControllerBase
     {

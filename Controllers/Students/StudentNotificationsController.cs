@@ -12,7 +12,7 @@ namespace IbnElgm3a.Controllers.Students
 {
     [ApiController]
     [Route("student/notifications")]
-    [Authorize]
+    [Authorize(Roles = "student")]
     public class StudentNotificationsController : ControllerBase
     {
         private readonly AppDbContext _context;

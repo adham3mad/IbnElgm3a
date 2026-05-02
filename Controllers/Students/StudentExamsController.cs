@@ -12,7 +12,7 @@ namespace IbnElgm3a.Controllers.Students
 {
     [ApiController]
     [Route("student/exams")]
-    [Authorize]
+    [Authorize(Roles = "student")]
     public class StudentExamsController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -130,7 +130,7 @@ namespace IbnElgm3a.Controllers.Students
                     seat_assignment = new
                     {
                         published = false,
-                        message = "Seat plan has not been published yet. Check back closer to the exam date."
+                        message = _localizer.GetMessage("SEAT_PLAN_NOT_PUBLISHED")
                     }
                 });
             }

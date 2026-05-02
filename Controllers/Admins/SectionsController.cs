@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 namespace IbnElgm3a.Controllers.Admins
 {
     [ApiController]
-    [Route("v1/admin/sections")]
+    [Route("admin/sections")]
     [Authorize]
     public class SectionsController : ControllerBase
     {

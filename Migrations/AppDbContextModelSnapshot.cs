@@ -49,6 +49,13 @@ namespace IbnElgm3a.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("AttachmentUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Audience")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("Body")
                         .IsRequired()
                         .HasColumnType("text");
@@ -60,14 +67,27 @@ namespace IbnElgm3a.Migrations
                         .IsRequired()
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("InstructorId")
+                        .HasColumnType("character varying(50)");
+
                     b.Property<int>("Priority")
                         .HasColumnType("integer");
 
                     b.Property<int>("ReadCount")
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset?>("ScheduledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("SendPush")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("SentCount")
                         .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("TargetId")
                         .HasColumnType("text");
@@ -95,7 +115,167 @@ namespace IbnElgm3a.Migrations
 
                     b.HasIndex("CreatedById");
 
+                    b.HasIndex("InstructorId");
+
                     b.ToTable("Announcements");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.AnnouncementCourse", b =>
+                {
+                    b.Property<string>("AnnouncementId")
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("CourseId")
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("AnnouncementId", "CourseId");
+
+                    b.HasIndex("CourseId");
+
+                    b.ToTable("AnnouncementCourse");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Assignment", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool>("AllowLateSubmissions")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("AttachmentUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CourseId")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("DueDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("GradesPublished")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("MaxPoints")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId");
+
+                    b.ToTable("Assignments");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.AssignmentSubmission", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("AssignmentId")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Feedback")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FileUrl")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("Score")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("StudentComment")
+                        .HasColumnType("text");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignmentId");
+
+                    b.HasIndex("StudentId");
+
+                    b.ToTable("AssignmentSubmissions");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.AttendanceRecord", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId");
+
+                    b.HasIndex("StudentId");
+
+                    b.ToTable("AttendanceRecords");
                 });
 
             modelBuilder.Entity("IbnElgm3a.Models.Data.AuditLog", b =>
@@ -425,6 +605,61 @@ namespace IbnElgm3a.Migrations
                     b.HasIndex("SemesterId");
 
                     b.ToTable("Courses");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.CourseMaterial", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("CourseId")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("DurationSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ExternalUrl")
+                        .HasColumnType("text");
+
+                    b.Property<long?>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("FileUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ViewCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("WeekNumber")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId");
+
+                    b.ToTable("CourseMaterials");
                 });
 
             modelBuilder.Entity("IbnElgm3a.Models.Data.Department", b =>
@@ -818,6 +1053,9 @@ namespace IbnElgm3a.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("Bio")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -871,7 +1109,6 @@ namespace IbnElgm3a.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("StudentId")
-                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
@@ -888,9 +1125,14 @@ namespace IbnElgm3a.Migrations
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("UserId")
+                        .HasColumnType("character varying(50)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("StudentId");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("Notifications");
                 });
@@ -933,6 +1175,143 @@ namespace IbnElgm3a.Migrations
                     b.HasIndex("FeatureId");
 
                     b.ToTable("Permissions");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Quiz", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("CourseId")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("EndDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("ShuffleQuestions")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("StartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("TimeLimitMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId");
+
+                    b.ToTable("Quizzes");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.QuizQuestion", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool?>("CorrectBoolean")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("CorrectOptionIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OptionsJson")
+                        .HasColumnType("text");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Points")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("QuizId")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QuizId");
+
+                    b.ToTable("QuizQuestions");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.QuizSubmission", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("QuizId")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QuizId");
+
+                    b.HasIndex("StudentId");
+
+                    b.ToTable("QuizSubmissions");
                 });
 
             modelBuilder.Entity("IbnElgm3a.Models.Data.RegistrationDraft", b =>
@@ -1334,6 +1713,81 @@ namespace IbnElgm3a.Migrations
                     b.ToTable("Semesters");
                 });
 
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Session", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("AttendanceStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EndTime")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
+
+                    b.Property<bool>("IsQrActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsRecurring")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("QrExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("QrToken")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RoomName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ScheduleSlotId")
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("SectionId")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("SessionNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StartTime")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("WeekNumber")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScheduleSlotId");
+
+                    b.HasIndex("SectionId");
+
+                    b.ToTable("Sessions");
+                });
+
             modelBuilder.Entity("IbnElgm3a.Models.Data.Student", b =>
                 {
                     b.Property<string>("Id")
@@ -1546,6 +2000,9 @@ namespace IbnElgm3a.Migrations
                     b.Property<bool>("IsEmailConfirmed")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTimeOffset?>("LastActiveAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<bool>("MustChangePw")
                         .HasColumnType("boolean");
 
@@ -1666,7 +2123,81 @@ namespace IbnElgm3a.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("IbnElgm3a.Models.Data.Instructor", "Instructor")
+                        .WithMany()
+                        .HasForeignKey("InstructorId");
+
                     b.Navigation("CreatedBy");
+
+                    b.Navigation("Instructor");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.AnnouncementCourse", b =>
+                {
+                    b.HasOne("IbnElgm3a.Models.Data.Announcement", "Announcement")
+                        .WithMany("AnnouncementCourses")
+                        .HasForeignKey("AnnouncementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("IbnElgm3a.Models.Data.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Announcement");
+
+                    b.Navigation("Course");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Assignment", b =>
+                {
+                    b.HasOne("IbnElgm3a.Models.Data.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.AssignmentSubmission", b =>
+                {
+                    b.HasOne("IbnElgm3a.Models.Data.Assignment", "Assignment")
+                        .WithMany()
+                        .HasForeignKey("AssignmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("IbnElgm3a.Models.Data.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Assignment");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.AttendanceRecord", b =>
+                {
+                    b.HasOne("IbnElgm3a.Models.Data.Session", "Session")
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("IbnElgm3a.Models.Data.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Session");
+
+                    b.Navigation("Student");
                 });
 
             modelBuilder.Entity("IbnElgm3a.Models.Data.AuditLog", b =>
@@ -1756,6 +2287,17 @@ namespace IbnElgm3a.Migrations
                     b.Navigation("Instructor");
 
                     b.Navigation("Semester");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.CourseMaterial", b =>
+                {
+                    b.HasOne("IbnElgm3a.Models.Data.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
                 });
 
             modelBuilder.Entity("IbnElgm3a.Models.Data.Department", b =>
@@ -1876,10 +2418,16 @@ namespace IbnElgm3a.Migrations
                     b.HasOne("IbnElgm3a.Models.Data.Student", "Student")
                         .WithMany()
                         .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("IbnElgm3a.Models.Data.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Student");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("IbnElgm3a.Models.Data.Permission", b =>
@@ -1891,6 +2439,47 @@ namespace IbnElgm3a.Migrations
                         .IsRequired();
 
                     b.Navigation("Feature");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Quiz", b =>
+                {
+                    b.HasOne("IbnElgm3a.Models.Data.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.QuizQuestion", b =>
+                {
+                    b.HasOne("IbnElgm3a.Models.Data.Quiz", "Quiz")
+                        .WithMany("Questions")
+                        .HasForeignKey("QuizId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Quiz");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.QuizSubmission", b =>
+                {
+                    b.HasOne("IbnElgm3a.Models.Data.Quiz", "Quiz")
+                        .WithMany()
+                        .HasForeignKey("QuizId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("IbnElgm3a.Models.Data.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Quiz");
+
+                    b.Navigation("Student");
                 });
 
             modelBuilder.Entity("IbnElgm3a.Models.Data.RegistrationDraft", b =>
@@ -2038,6 +2627,23 @@ namespace IbnElgm3a.Migrations
                     b.Navigation("Semester");
                 });
 
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Session", b =>
+                {
+                    b.HasOne("IbnElgm3a.Models.Data.ScheduleSlot", "ScheduleSlot")
+                        .WithMany()
+                        .HasForeignKey("ScheduleSlotId");
+
+                    b.HasOne("IbnElgm3a.Models.Data.Section", "Section")
+                        .WithMany()
+                        .HasForeignKey("SectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ScheduleSlot");
+
+                    b.Navigation("Section");
+                });
+
             modelBuilder.Entity("IbnElgm3a.Models.Data.Student", b =>
                 {
                     b.HasOne("IbnElgm3a.Models.Data.Department", "Department")
@@ -2147,6 +2753,11 @@ namespace IbnElgm3a.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Announcement", b =>
+                {
+                    b.Navigation("AnnouncementCourses");
+                });
+
             modelBuilder.Entity("IbnElgm3a.Models.Data.Complaint", b =>
                 {
                     b.Navigation("InternalNotes");
@@ -2187,6 +2798,11 @@ namespace IbnElgm3a.Migrations
             modelBuilder.Entity("IbnElgm3a.Models.Data.Guardian", b =>
                 {
                     b.Navigation("Students");
+                });
+
+            modelBuilder.Entity("IbnElgm3a.Models.Data.Quiz", b =>
+                {
+                    b.Navigation("Questions");
                 });
 
             modelBuilder.Entity("IbnElgm3a.Models.Data.RegistrationDraft", b =>
