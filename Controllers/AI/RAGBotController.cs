@@ -1,32 +1,84 @@
 using IbnElgm3a.DTOs.RAGBot;
+using IbnElgm3a.Models;
 using IbnElgm3a.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace IbnElgm3a.Controllers.AI
 {
     [ApiController]
-    [Route("api/v1/ragbot")]
-    [Authorize(Roles ="student")]
+    [Route("ragbot")]
+    [Authorize]
     public class RAGBotController : ControllerBase
     {
         private readonly IRAGBotService _ragBotService;
+        private readonly AppDbContext _context;
 
-        public RAGBotController(IRAGBotService ragBotService)
+        public RAGBotController(IRAGBotService ragBotService, AppDbContext context)
         {
             _ragBotService = ragBotService;
+            _context = context;
         }
 
-        [HttpPost("chat")] // Chat is open as per documentation, but you can restrict it to Authenticated users if needed
-        public async Task<IActionResult> Chat([FromBody] ChatRequestDto request)
+        private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+
+        [HttpPost("chat")] 
+        public async Task<IActionResult> Chat([FromBody] ChatInputDto input)
         {
+            var userId = GetUserId();
+            var student = await _context.Students
+                .Include(s => s.User)
+                .Include(s => s.Department)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null) return Unauthorized();
+
+            var request = new ChatRequestDto
+            {
+                Question = input.Question,
+                Session_Id = input.Session_Id,
+                Top_K = input.Top_K,
+                Tags = input.Tags,
+                Student_Id = student.AcademicNumber,
+                Faculty_Id = student.User?.FacultyId,
+                Department = student.Department?.Name
+            };
+
             var response = await _ragBotService.ChatAsync(request);
             return Ok(response);
         }
 
         [HttpPost("chat/stream")]
-        public async Task ChatStream([FromBody] ChatRequestDto request)
+        public async Task ChatStream([FromBody] ChatInputDto input)
         {
+            var userId = GetUserId();
+            var student = await _context.Students
+                .Include(s => s.User)
+                .Include(s => s.Department)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            if (student == null)
+            {
+                Response.StatusCode = 401;
+                return;
+            }
+
+            var request = new ChatRequestDto
+            {
+                Question = input.Question,
+                Session_Id = input.Session_Id,
+                Top_K = input.Top_K,
+                Tags = input.Tags,
+                Student_Id = student.AcademicNumber,
+                Faculty_Id = student.User?.FacultyId,
+                Department = student.Department?.Name
+            };
+
             Response.ContentType = "text/event-stream";
             Response.Headers.Append("Cache-Control", "no-cache");
             Response.Headers.Append("Connection", "keep-alive");

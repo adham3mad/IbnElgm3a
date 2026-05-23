@@ -4,10 +4,10 @@ namespace IbnElgm3a.Services
 {
     public interface INotificationService
     {
-        Task<int> GetUnreadCountAsync(string studentId);
-        Task MarkAsReadAsync(string notificationId, string studentId);
-        Task MarkAllAsReadAsync(string studentId);
-        Task InvalidateCacheAsync(string studentId);
-        Task CreateNotificationAsync(string studentId, string type, string title, string body, string? actionUrl = null);
+        Task<int> GetUnreadCountAsync(string targetId, bool isStudent = true);
+        Task MarkAsReadAsync(string notificationId, string targetId, bool isStudent = true);
+        Task MarkAllAsReadAsync(string targetId, bool isStudent = true);
+        Task InvalidateCacheAsync(string targetId, bool isStudent = true);
+        Task CreateNotificationAsync(string targetId, string type, string title, string body, string? actionUrl = null, bool isStudent = true);
     }
 }

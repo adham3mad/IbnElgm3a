@@ -319,9 +319,9 @@ namespace IbnElgm3a.Services
 
         private async Task<AuthTokensDto> GenerateTokensAsync(User user, bool rememberMe)
         {
-            var jwtKey = _config["JWT_KEY"] ?? "MasaarVerySecureSuperSecretKey123456!!";
-            var issuer = _config["JWT_ISSUER"] ?? "Masaar";
-            var audience = _config["JWT_AUDIENCE"] ?? "MasaarClient";
+            var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY") ?? _config["JWT_KEY"] ?? "MasaarVerySecureSuperSecretKey123456!!";
+            var issuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? _config["JWT_ISSUER"] ?? "Masaar";
+            var audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? _config["JWT_AUDIENCE"] ?? "MasaarClient";
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -360,6 +360,11 @@ namespace IbnElgm3a.Services
                 ExpiresAt = expiry
             };
 
+            // Delete all previous refresh and access tokens for this user
+            await _context.Tokens
+                .Where(t => t.UserId == user.Id && (t.TokenType == "refresh" || t.TokenType == "access"))
+                .ExecuteDeleteAsync();
+
             // Save Refresh Token to DB
             _context.Tokens.Add(new Token
             {
@@ -385,9 +390,9 @@ namespace IbnElgm3a.Services
     
         private async Task<AuthTokensDto> GenerateAccessTokensAsync(User user, bool rememberMe, string RefreshToken)
         {
-            var jwtKey = _config["JWT_KEY"] ?? "MasaarVerySecureSuperSecretKey123456!!";
-            var issuer = _config["JWT_ISSUER"] ?? "Masaar";
-            var audience = _config["JWT_AUDIENCE"] ?? "MasaarClient";
+            var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY") ?? _config["JWT_KEY"] ?? "MasaarVerySecureSuperSecretKey123456!!";
+            var issuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? _config["JWT_ISSUER"] ?? "Masaar";
+            var audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? _config["JWT_AUDIENCE"] ?? "MasaarClient";
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -422,6 +427,11 @@ namespace IbnElgm3a.Services
                 ExpiresIn = expiryMinutes * 60,
                 ExpiresAt = expiry
             };
+
+            // Delete all previous access tokens for this user
+            await _context.Tokens
+                .Where(t => t.UserId == user.Id && t.TokenType == "access")
+                .ExecuteDeleteAsync();
 
             _context.Tokens.Add(new Token
             {
