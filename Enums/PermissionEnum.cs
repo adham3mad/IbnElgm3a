@@ -137,6 +137,9 @@ namespace IbnElgm3a.Enums
         Dashboard_Users_UpdateStatus = 244,
         Dashboard_Users_Import = 245,
 
+        // Cards
+        manage_cards = 250,
+
         // Platform / App
         Platform_Profile_Read = 1000,
         Platform_Profile_Update = 1001,

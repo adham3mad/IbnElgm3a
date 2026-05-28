@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using IbnElgm3a.Filters;
 using IbnElgm3a.Attributes;
 using IbnElgm3a.DTOs.Nfc;
 using IbnElgm3a.Enums;
@@ -365,6 +366,7 @@ namespace IbnElgm3a.Controllers.Common
         }
 
         [HttpPost("admin/card")]
+        [RequirePermission(PermissionEnum.manage_cards)]
         public async Task<IActionResult> AdminCardScan([FromBody] NfcAdminRequest request)
         {
             var isEnroll = "enroll".Equals(request.Action, StringComparison.OrdinalIgnoreCase);
@@ -453,6 +455,7 @@ namespace IbnElgm3a.Controllers.Common
         }
 
         [HttpPost("admin/card/link")]
+        [RequirePermission(PermissionEnum.manage_cards)]
         public async Task<IActionResult> LinkCard([FromBody] NfcLinkRequest request)
         {
             // 1. Validate Secret
