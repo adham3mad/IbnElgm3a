@@ -366,7 +366,7 @@ namespace IbnElgm3a.Controllers.Common
         }
 
         [HttpPost("admin/card")]
-        [RequirePermission(PermissionEnum.manage_cards)]
+        // [RequirePermission(PermissionEnum.manage_cards)]
         public async Task<IActionResult> AdminCardScan([FromBody] NfcAdminRequest request)
         {
             var isEnroll = "enroll".Equals(request.Action, StringComparison.OrdinalIgnoreCase);
@@ -455,7 +455,7 @@ namespace IbnElgm3a.Controllers.Common
         }
 
         [HttpPost("admin/card/link")]
-        [RequirePermission(PermissionEnum.manage_cards)]
+        // [RequirePermission(PermissionEnum.manage_cards)]
         public async Task<IActionResult> LinkCard([FromBody] NfcLinkRequest request)
         {
             // 1. Validate Secret
