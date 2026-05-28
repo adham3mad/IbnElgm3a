@@ -134,33 +134,70 @@ namespace IbnElgm3a.Models.Seeder
 
         private static async Task<List<Faculty>> SeedFacultiesAsync(AppDbContext context)
         {
-            if (await context.Faculties.AnyAsync()) return await context.Faculties.ToListAsync();
-
-            var faculties = new List<Faculty>
+            var faculties = await context.Faculties.ToListAsync();
+            var targetFaculties = new List<Faculty>
             {
                 new Faculty { Name = "Faculty of Engineering", NameAr = "كلية الهندسة", Code = "ENG", CreatedAt = DateTimeOffset.UtcNow },
                 new Faculty { Name = "Faculty of Commerce", NameAr = "كلية التجارة", Code = "COM", CreatedAt = DateTimeOffset.UtcNow },
                 new Faculty { Name = "Faculty of Science", NameAr = "كلية العلوم", Code = "SCI", CreatedAt = DateTimeOffset.UtcNow }
             };
 
-            context.Faculties.AddRange(faculties);
-            await context.SaveChangesAsync();
+            bool changed = false;
+            foreach (var tf in targetFaculties)
+            {
+                var existing = faculties.FirstOrDefault(f => f.Name == tf.Name || f.NameAr == tf.NameAr);
+                if (existing == null)
+                {
+                    context.Faculties.Add(tf);
+                    faculties.Add(tf);
+                    changed = true;
+                }
+                else if (string.IsNullOrEmpty(existing.Code) || existing.Code != tf.Code)
+                {
+                    existing.Code = tf.Code;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                await context.SaveChangesAsync();
+            }
             return faculties;
         }
 
         private static async Task<List<Department>> SeedDepartmentsAsync(AppDbContext context, List<Faculty> faculties)
         {
-            if (await context.Departments.AnyAsync()) return await context.Departments.ToListAsync();
-
-            var depts = new List<Department>();
+            var depts = await context.Departments.ToListAsync();
+            var targetDepts = new List<Department>();
             foreach (var faculty in faculties)
             {
-                depts.Add(new Department { Name = $"{faculty.Code} Dept 1", NameAr = $"قسم 1 - {faculty.NameAr}", Code = $"{faculty.Code}01", FacultyId = faculty.Id });
-                depts.Add(new Department { Name = $"{faculty.Code} Dept 2", NameAr = $"قسم 2 - {faculty.NameAr}", Code = $"{faculty.Code}02", FacultyId = faculty.Id });
+                targetDepts.Add(new Department { Name = $"{faculty.Code} Dept 1", NameAr = $"قسم 1 - {faculty.NameAr}", Code = $"{faculty.Code}01", FacultyId = faculty.Id });
+                targetDepts.Add(new Department { Name = $"{faculty.Code} Dept 2", NameAr = $"قسم 2 - {faculty.NameAr}", Code = $"{faculty.Code}02", FacultyId = faculty.Id });
             }
 
-            context.Departments.AddRange(depts);
-            await context.SaveChangesAsync();
+            bool changed = false;
+            foreach (var td in targetDepts)
+            {
+                var existing = depts.FirstOrDefault(d => d.Name == td.Name || d.NameAr == td.NameAr);
+                if (existing == null)
+                {
+                    context.Departments.Add(td);
+                    depts.Add(td);
+                    changed = true;
+                }
+                else if (string.IsNullOrEmpty(existing.Code) || existing.Code != td.Code || existing.FacultyId != td.FacultyId)
+                {
+                    existing.Code = td.Code;
+                    existing.FacultyId = td.FacultyId;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                await context.SaveChangesAsync();
+            }
             return depts;
         }
 
@@ -207,6 +244,12 @@ namespace IbnElgm3a.Models.Seeder
                     CreatedAt = DateTimeOffset.UtcNow
                 };
                 context.Users.Add(user);
+                await context.SaveChangesAsync();
+            }
+            else
+            {
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456" + pepper);
+                user.NationalId = nid;
                 await context.SaveChangesAsync();
             }
             return user;
