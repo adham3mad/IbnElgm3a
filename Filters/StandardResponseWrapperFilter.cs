@@ -1,4 +1,5 @@
 using IbnElgm3a.Models;
+using IbnElgm3a.Attributes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using System.Linq;
@@ -9,6 +10,10 @@ namespace IbnElgm3a.Filters
     {
         public void OnActionExecuting(ActionExecutingContext context)
         {
+            if (context.ActionDescriptor.EndpointMetadata.Any(em => em is BypassResponseWrapperAttribute))
+            {
+                return;
+            }
             // ModelState invalid logic handles 400 Bad Request
             if (!context.ModelState.IsValid)
             {
@@ -33,6 +38,11 @@ namespace IbnElgm3a.Filters
 
         public void OnActionExecuted(ActionExecutedContext context)
         {
+            if (context.ActionDescriptor.EndpointMetadata.Any(em => em is BypassResponseWrapperAttribute))
+            {
+                return;
+            }
+
             if (context.Exception != null)
                 return; // Let the GlobalExceptionHandler handle exceptions
 

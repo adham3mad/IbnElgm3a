@@ -16,6 +16,12 @@ namespace IbnElgm3a.Models.Seeder
         {
             var pepper = config["PASSWORD_PEPPER"] ?? "";
 
+            // Clear test-run data to ensure clean E2E testing slate
+            context.CampusSessions.RemoveRange(context.CampusSessions);
+            context.RoomAttendances.RemoveRange(context.RoomAttendances);
+            context.ScanAudits.RemoveRange(context.ScanAudits);
+            await context.SaveChangesAsync();
+
             // 1. Seed Permissions & Features
             await PermissionSeeder.SeedAsync(context);
 
@@ -66,7 +72,31 @@ namespace IbnElgm3a.Models.Seeder
             await SeedAnnouncementsAsync(context, adminUser);
             await SeedCalendarEventsAsync(context, currentSemester);
             await SeedNotificationsAsync(context, students);
-            await SeedSystemSettingsAsync(context);
+            // Seed NFC Cards for testing
+            if (students != null && students.Any())
+            {
+                for (int i = 0; i < Math.Min(students.Count, 5); i++)
+                {
+                    var uid = $"AA:BB:CC:DD:{(i + 1):D2}";
+                    var card = await context.Cards.FirstOrDefaultAsync(c => c.Uid == uid);
+                    if (card == null)
+                    {
+                        context.Cards.Add(new Card
+                        {
+                            Uid = uid,
+                            StudentId = students[i].Id,
+                            Status = "active",
+                            EnrolledBy = "seeder",
+                            EnrolledAt = DateTimeOffset.UtcNow
+                        });
+                    }
+                    else
+                    {
+                        card.StudentId = students[i].Id;
+                        card.Status = "active";
+                    }
+                }
+            }
 
             await context.SaveChangesAsync();
         }
@@ -136,13 +166,23 @@ namespace IbnElgm3a.Models.Seeder
 
         private static async Task<List<Room>> SeedRoomsAsync(AppDbContext context)
         {
-            if (await context.Rooms.AnyAsync()) return await context.Rooms.ToListAsync();
+            if (await context.Rooms.AnyAsync()) 
+            {
+                var testRoomExists = await context.Rooms.AnyAsync(r => r.Code == "1");
+                if (!testRoomExists)
+                {
+                    context.Rooms.Add(new Room { Name = "NFC Test Room", Code = "1", Capacity = 50, Type = RoomType.TutorialRoom });
+                    await context.SaveChangesAsync();
+                }
+                return await context.Rooms.ToListAsync();
+            }
 
             var rooms = new List<Room>
             {
                 new Room { Name = "Hall A", Code = "HALA", Capacity = 100, Type = RoomType.LectureHall },
                 new Room { Name = "Lab 1", Code = "LAB1", Capacity = 30, Type = RoomType.Lab },
-                new Room { Name = "Room 101", Code = "R101", Capacity = 50, Type = RoomType.TutorialRoom }
+                new Room { Name = "Room 101", Code = "R101", Capacity = 50, Type = RoomType.TutorialRoom },
+                new Room { Name = "NFC Test Room", Code = "1", Capacity = 50, Type = RoomType.TutorialRoom }
             };
 
             context.Rooms.AddRange(rooms);
@@ -249,6 +289,31 @@ namespace IbnElgm3a.Models.Seeder
                 students.Add(student);
             }
             await context.SaveChangesAsync();
+
+            // Seed NFC Cards for the first few students
+            for (int i = 0; i < Math.Min(students.Count, 5); i++)
+            {
+                var uid = $"AA:BB:CC:DD:{(i + 1):D2}";
+                var card = await context.Cards.FirstOrDefaultAsync(c => c.Uid == uid);
+                if (card == null)
+                {
+                    context.Cards.Add(new Card
+                    {
+                        Uid = uid,
+                        StudentId = students[i].Id,
+                        Status = "active",
+                        EnrolledBy = "seeder",
+                        EnrolledAt = DateTimeOffset.UtcNow
+                    });
+                }
+                else
+                {
+                    card.StudentId = students[i].Id;
+                    card.Status = "active";
+                }
+            }
+            await context.SaveChangesAsync();
+
             return students;
         }
 

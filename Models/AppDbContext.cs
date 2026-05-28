@@ -80,6 +80,12 @@ namespace IbnElgm3a.Models
         public DbSet<RegistrationRequest> RegistrationRequests => Set<RegistrationRequest>();
         public DbSet<RegistrationRequestCourse> RegistrationRequestCourses => Set<RegistrationRequestCourse>();
 
+        // NFC Attendance System
+        public DbSet<Card> Cards => Set<Card>();
+        public DbSet<CampusSession> CampusSessions => Set<CampusSession>();
+        public DbSet<RoomAttendance> RoomAttendances => Set<RoomAttendance>();
+        public DbSet<ScanAudit> ScanAudits => Set<ScanAudit>();
+
         protected override void OnModelCreating(ModelBuilder model)
         {
             base.OnModelCreating(model);
@@ -224,6 +230,21 @@ namespace IbnElgm3a.Models
 
             model.Entity<AnnouncementCourse>()
                 .HasKey(ac => new { ac.AnnouncementId, ac.CourseId });
+
+            // NFC Attendance System Configs
+            model.Entity<Card>()
+                .HasIndex(c => c.Uid)
+                .IsUnique();
+
+            model.Entity<CampusSession>()
+                .Property(cs => cs.Duration)
+                .HasComputedColumnSql("\"ExitTime\" - \"EntryTime\"", stored: true);
+
+            model.Entity<CampusSession>()
+                .HasIndex(cs => new { cs.StudentId, cs.EntryTime });
+
+            model.Entity<RoomAttendance>()
+                .HasIndex(ra => new { ra.StudentId, ra.RoomId, ra.ScannedAt });
         }
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
