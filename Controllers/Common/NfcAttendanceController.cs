@@ -452,6 +452,57 @@ namespace IbnElgm3a.Controllers.Common
             return BadRequest(new { error = _localizer.GetMessage("NFC_UNSUPPORTED_ACTION") });
         }
 
+        [HttpPost("admin/card/link")]
+        public async Task<IActionResult> LinkCard([FromBody] NfcLinkRequest request)
+        {
+            // 1. Validate Secret
+            var serverSecret = Environment.GetEnvironmentVariable("ESP32_SECRET");
+            if (string.IsNullOrEmpty(serverSecret) || request.Secret != serverSecret)
+            {
+                return StatusCode(401, new { error = _localizer.GetMessage("NFC_INVALID_SECRET") });
+            }
+
+            // 2. Validate Card Uid Format
+            if (string.IsNullOrEmpty(request.Uid) || !Regex.IsMatch(request.Uid, UidRegexPattern, RegexOptions.IgnoreCase))
+            {
+                return StatusCode(422, new { error = _localizer.GetMessage("NFC_INVALID_UID_FORMAT") });
+            }
+
+            // 3. Find Student
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.Id == request.StudentId);
+            if (student == null)
+            {
+                return NotFound(new { error = _localizer.GetMessage("USER_NOT_FOUND") });
+            }
+
+            // 4. Find Card
+            var card = await _context.Cards.FirstOrDefaultAsync(c => c.Uid == request.Uid);
+            if (card == null)
+            {
+                return NotFound(new { error = _localizer.GetMessage("NFC_CARD_NOT_FOUND_ERR") });
+            }
+
+            // 5. Check if Student already has another card linked
+            var studentCard = await _context.Cards.FirstOrDefaultAsync(c => c.StudentId == student.Id && c.Uid != card.Uid);
+            if (studentCard != null)
+            {
+                return Conflict(new { error = "Student is already linked to another card." });
+            }
+
+            // 6. Link Card
+            card.StudentId = student.Id;
+            card.UpdatedAt = DateTimeOffset.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                message = "Card linked to student successfully.",
+                uid = card.Uid,
+                student_id = card.StudentId
+            });
+        }
+
         [HttpGet("attendance/test/diagnostics")]
         public async Task<IActionResult> GetDiagnostics()
         {
@@ -460,11 +511,15 @@ namespace IbnElgm3a.Controllers.Common
                 .ToListAsync();
 
             var studentCount = await _context.Students.CountAsync();
+            var students = await _context.Students
+                .Select(s => s.Id)
+                .ToListAsync();
+
             var rooms = await _context.Rooms
                 .Select(r => new { r.Id, r.Name, r.Code })
                 .ToListAsync();
 
-            return Ok(new { cards, studentCount, rooms });
+            return Ok(new { cards, studentCount, students, rooms });
         }
     }
 }
