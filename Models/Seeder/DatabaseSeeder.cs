@@ -45,6 +45,87 @@ namespace IbnElgm3a.Models.Seeder
             var students = await SeedStudentsAsync(context, studentRole, faculties, departments, pepper);
             var guardians = await SeedGuardiansAsync(context, students);
 
+            // Seed Specific Instructor Account (National ID: "14523678954126", Password: "Ad@1234567")
+            var specInstructorUser = await context.Users.FirstOrDefaultAsync(u => u.NationalId == "14523678954126");
+            if (specInstructorUser == null)
+            {
+                specInstructorUser = new User
+                {
+                    Name = "Instructor Special",
+                    Email = "instructor_special@ibnelgm3a.com",
+                    Phone = "01014523678",
+                    NationalId = "14523678954126",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Ad@1234567" + pepper),
+                    RoleId = instructorRole.Id,
+                    Status = UserStatus.Active,
+                    DepartmentId = departments.First().Id,
+                    FacultyId = departments.First().FacultyId
+                };
+                context.Users.Add(specInstructorUser);
+                await context.SaveChangesAsync();
+
+                var specInstructor = new Instructor 
+                { 
+                    UserId = specInstructorUser.Id, 
+                    Rank = "Professor", 
+                    DepartmentId = specInstructorUser.DepartmentId 
+                };
+                context.Instructors.Add(specInstructor);
+                await context.SaveChangesAsync();
+                instructors.Add(specInstructor);
+            }
+            else
+            {
+                specInstructorUser.PasswordHash = BCrypt.Net.BCrypt.HashPassword("Ad@1234567" + pepper);
+                specInstructorUser.RoleId = instructorRole.Id;
+                specInstructorUser.Status = UserStatus.Active;
+                await context.SaveChangesAsync();
+            }
+
+            // Seed Specific Student Account (National ID: "30312061301239", Password: "Ad@1234567")
+            var specStudentUser = await context.Users.FirstOrDefaultAsync(u => u.NationalId == "30312061301239");
+            if (specStudentUser == null)
+            {
+                specStudentUser = new User
+                {
+                    Name = "Student Special",
+                    Email = "student_special@ibnelgm3a.com",
+                    Phone = "01130312061",
+                    NationalId = "30312061301239",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Ad@1234567" + pepper),
+                    RoleId = studentRole.Id,
+                    Status = UserStatus.Active,
+                    FacultyId = faculties.First().Id,
+                    DepartmentId = departments.First(d => d.FacultyId == faculties.First().Id).Id
+                };
+                context.Users.Add(specStudentUser);
+                await context.SaveChangesAsync();
+
+                var specStudent = new Student
+                {
+                    UserId = specStudentUser.Id,
+                    AcademicNumber = "20249999",
+                    GPA = 3.8m,
+                    Level = 1,
+                    EnrollmentDate = DateTimeOffset.UtcNow,
+                    IsActive = true,
+                    BirthDate = DateTimeOffset.UtcNow.AddYears(-19),
+                    Gender = Gender.Male,
+                    Nationality = "Egyptian",
+                    DepartmentId = specStudentUser.DepartmentId ?? ""
+                };
+                context.Students.Add(specStudent);
+                await context.SaveChangesAsync();
+                students.Add(specStudent);
+            }
+            else
+            {
+                specStudentUser.PasswordHash = BCrypt.Net.BCrypt.HashPassword("Ad@1234567" + pepper);
+                specStudentUser.RoleId = studentRole.Id;
+                specStudentUser.Status = UserStatus.Active;
+                await context.SaveChangesAsync();
+            }
+
             // 6. Seed Semesters & Courses
             var currentSemester = await SeedSemestersAsync(context);
             var courses = await SeedCoursesAsync(context, departments, instructors, currentSemester);
@@ -418,8 +499,8 @@ namespace IbnElgm3a.Models.Seeder
             int idx = 0;
             foreach (var dept in departments)
             {
-                courses.Add(new Course { Title = $"{dept.Code} Course 1", TitleAr = $"مادة 1 - {dept.NameAr}", CourseCode = $"{dept.Code}101", CreditHours = 3, DepartmentId = dept.Id, SemesterId = semester.Id, InstructorId = instructors[idx % instructors.Count].UserId });
-                courses.Add(new Course { Title = $"{dept.Code} Course 2", TitleAr = $"مادة 2 - {dept.NameAr}", CourseCode = $"{dept.Code}102", CreditHours = 4, DepartmentId = dept.Id, SemesterId = semester.Id, InstructorId = instructors[(idx + 1) % instructors.Count].UserId });
+                courses.Add(new Course { Title = $"{dept.Code} Course 1", TitleAr = $"مادة 1 - {dept.NameAr}", CourseCode = $"{dept.Code}101", CreditHours = 3, DepartmentId = dept.Id, SemesterId = semester.Id, InstructorId = instructors[idx % instructors.Count].Id });
+                courses.Add(new Course { Title = $"{dept.Code} Course 2", TitleAr = $"مادة 2 - {dept.NameAr}", CourseCode = $"{dept.Code}102", CreditHours = 4, DepartmentId = dept.Id, SemesterId = semester.Id, InstructorId = instructors[(idx + 1) % instructors.Count].Id });
                 idx++;
             }
 
@@ -438,7 +519,7 @@ namespace IbnElgm3a.Models.Seeder
                 var section = new Section
                 {
                     CourseId = courses[i].Id,
-                    InstructorId = instructors[i % instructors.Count].UserId,
+                    InstructorId = instructors[i % instructors.Count].Id,
                     SemesterId = semester.Id,
                     Name = "Section 01",
                     Capacity = 40,
