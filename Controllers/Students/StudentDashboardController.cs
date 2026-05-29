@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
 using IbnElgm3a.Services;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace IbnElgm3a.Controllers.Students
 {
@@ -19,12 +20,21 @@ namespace IbnElgm3a.Controllers.Students
         private readonly AppDbContext _context;
         private readonly INotificationService _notificationService;
         private readonly IbnElgm3a.Services.Localization.ILocalizationService _localizer;
+        private readonly Microsoft.Extensions.DependencyInjection.IServiceScopeFactory _scopeFactory;
+        private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache _cache;
 
-        public StudentDashboardController(AppDbContext context, INotificationService notificationService, IbnElgm3a.Services.Localization.ILocalizationService localizer)
+        public StudentDashboardController(
+            AppDbContext context, 
+            INotificationService notificationService, 
+            IbnElgm3a.Services.Localization.ILocalizationService localizer,
+            Microsoft.Extensions.DependencyInjection.IServiceScopeFactory scopeFactory,
+            Microsoft.Extensions.Caching.Memory.IMemoryCache cache)
         {
             _context = context;
             _notificationService = notificationService;
             _localizer = localizer;
+            _scopeFactory = scopeFactory;
+            _cache = cache;
         }
 
         private string GetUserId() => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
@@ -34,52 +44,106 @@ namespace IbnElgm3a.Controllers.Students
         public async Task<IActionResult> GetDashboard()
         {
             var userId = GetUserId();
-            var student = await _context.Students
-                .Include(s => s.User)
-                    .ThenInclude(u => u!.Faculty)
-                .Include(s => s.User)
-                    .ThenInclude(u => u!.Department)
-                .FirstOrDefaultAsync(s => s.UserId == userId);
+            var cacheKey = $"student_dashboard_{userId}";
 
+            if (_cache.TryGetValue(cacheKey, out object? cachedResponse) && cachedResponse != null)
+            {
+                return Ok(cachedResponse);
+            }
+
+            var now = DateTimeOffset.UtcNow;
+
+            // Round 1: Fetch student profile and semesters in parallel using separate scopes
+            var studentTask = Task.Run(async () =>
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                return await db.Students
+                    .AsNoTracking()
+                    .Include(s => s.User)
+                        .ThenInclude(u => u!.Faculty)
+                    .Include(s => s.User)
+                        .ThenInclude(u => u!.Department)
+                    .FirstOrDefaultAsync(s => s.UserId == userId);
+            });
+
+            var semestersTask = Task.Run(async () =>
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                return await db.Semesters
+                    .AsNoTracking()
+                    .OrderByDescending(s => s.StartDate)
+                    .ToListAsync();
+            });
+
+            await Task.WhenAll(studentTask, semestersTask);
+
+            var student = await studentTask;
             if (student == null) return Unauthorized(new { message = _localizer.GetMessage("UNAUTHORIZED") });
 
-            // Semester
-            var activeSemester = await _context.Semesters.OrderByDescending(s => s.StartDate).FirstOrDefaultAsync();
-
-            // Next semester for registration
-            var now = DateTimeOffset.UtcNow;
-            var nextSemester = await _context.Semesters
+            var semesters = await semestersTask;
+            var activeSemester = semesters.FirstOrDefault();
+            var nextSemester = semesters
                 .Where(s => s.StartDate > now)
                 .OrderBy(s => s.StartDate)
-                .FirstOrDefaultAsync();
+                .FirstOrDefault();
 
-            // Kpis
-            var openComplaints = await _context.Complaints
-                .CountAsync(c => c.StudentId == student.Id && c.Status != ComplaintStatus.Resolved && c.Status != ComplaintStatus.Closed);
-            
-            var unreadCount = await _notificationService.GetUnreadCountAsync(student.Id);
+            // Round 2: Fetch everything else in parallel using activeSemester.Id and student.Id
+            var countsTask = Task.Run(async () =>
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                return await db.Students
+                    .AsNoTracking()
+                    .Where(s => s.Id == student.Id)
+                    .Select(s => new
+                    {
+                        OpenComplaints = db.Complaints.Count(c => c.StudentId == s.Id && c.Status != ComplaintStatus.Resolved && c.Status != ComplaintStatus.Closed),
+                        UnreadNotifications = db.Notifications.Count(n => n.StudentId == s.Id && !n.IsRead),
+                        AttendedCount = activeSemester != null ? db.AttendanceRecords.Count(a => a.StudentId == s.Id && a.Session!.Section!.Course!.SemesterId == activeSemester.Id && a.Session.AttendanceStatus == "completed" && (a.Status == "present" || a.Status == "late")) : 0,
+                        TotalCompletedSessions = activeSemester != null ? db.Sessions.Count(sess => sess.AttendanceStatus == "completed" && db.Enrollments.Any(e => e.StudentId == s.Id && e.SectionId == sess.SectionId && e.Status == EnrollmentStatus.Enrolled && e.Section!.Course!.SemesterId == activeSemester.Id)) : 0
+                    })
+                    .FirstOrDefaultAsync();
+            });
 
-            var enrollments = await _context.Enrollments
-                .Include(e => e.Section)
-                    .ThenInclude(s => s!.Course)
-                .Include(e => e.Section)
-                    .ThenInclude(s => s!.ScheduleSlots)
-                .Where(e => e.StudentId == student.Id && e.Section != null && e.Section.Course != null && e.Section.Course.SemesterId == activeSemester.Id && e.Status == EnrollmentStatus.Enrolled)
-                .ToListAsync();
+            var enrollStatsTask = Task.Run(async () =>
+            {
+                if (activeSemester == null) return (Count: 0, CreditHours: 0);
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var stats = await db.Enrollments
+                    .AsNoTracking()
+                    .Where(e => e.StudentId == student.Id && e.Section != null && e.Section.Course != null && e.Section.Course.SemesterId == activeSemester.Id && e.Status == EnrollmentStatus.Enrolled)
+                    .GroupBy(e => 1)
+                    .Select(g => new
+                    {
+                        Count = g.Count(),
+                        CreditHours = g.Sum(e => e.Section!.Course!.CreditHours)
+                    })
+                    .FirstOrDefaultAsync();
 
-            var currentCredits = enrollments.Sum(e => e.Section?.Course?.CreditHours ?? 0);
+                return stats != null ? (Count: stats.Count, CreditHours: stats.CreditHours) : (Count: 0, CreditHours: 0);
+            });
 
-            // Exams
-            var enrolledCourseIds = enrollments.Select(en => en.Section?.CourseId).Where(id => id != null).ToList();
-            var upcomingExams = await _context.Exams
-                .Include(e => e.Course)
-                .Where(e => e.Date >= now && enrolledCourseIds.Contains(e.CourseId))
-                .OrderBy(e => e.Date)
-                .ToListAsync();
+            var examsTask = Task.Run(async () =>
+            {
+                if (activeSemester == null) return (Count: 0, NextDate: (DateTimeOffset?)null);
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var upcomingExamsQuery = db.Exams
+                    .AsNoTracking()
+                    .Where(e => e.Date >= now && db.Enrollments.Any(en => en.StudentId == student.Id && en.Section!.CourseId == e.CourseId && en.Status == EnrollmentStatus.Enrolled && en.Section.Course.SemesterId == activeSemester.Id));
 
-            var nextExamDays = upcomingExams.Any() ? (upcomingExams.First().Date - now).Days : (int?)null;
+                var count = await upcomingExamsQuery.CountAsync();
+                var nextDate = await upcomingExamsQuery
+                    .OrderBy(e => e.Date)
+                    .Select(e => (DateTimeOffset?)e.Date)
+                    .FirstOrDefaultAsync();
 
-            // Schedule for today
+                return (Count: count, NextDate: nextDate);
+            });
+
             var dayOfWeek = now.DayOfWeek;
             DayOfWeekEnum currentEnumDay = dayOfWeek switch
             {
@@ -93,23 +157,85 @@ namespace IbnElgm3a.Controllers.Students
                 _ => DayOfWeekEnum.Sunday
             };
 
-            var sectionIds = enrollments.Select(e => e.SectionId).ToList();
-            var todaySlots = await _context.ScheduleSlots
-                .Include(s => s.Section)
-                    .ThenInclude(sec => sec!.Course)
-                .Include(s => s.Section)
-                    .ThenInclude(sec => sec!.Instructor)
-                        .ThenInclude(i => i!.User)
-                .Include(s => s.Room)
-                .Where(s => sectionIds.Contains(s.SectionId) && s.Day == currentEnumDay)
-                .OrderBy(s => s.StartTime)
-                .ToListAsync();
+            var scheduleTask = Task.Run(async () =>
+            {
+                if (activeSemester == null) return new List<ScheduleSlotData>();
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var data = await db.ScheduleSlots
+                    .AsNoTracking()
+                    .Where(s => s.Day == currentEnumDay && db.Enrollments.Any(e => e.StudentId == student.Id && e.SectionId == s.SectionId && e.Status == EnrollmentStatus.Enrolled && e.Section!.Course!.SemesterId == activeSemester.Id))
+                    .OrderBy(s => s.StartTime)
+                    .Select(s => new
+                    {
+                        CourseId = s.Section != null ? s.Section.CourseId : null,
+                        CourseTitle = s.Section != null && s.Section.Course != null ? s.Section.Course.Title : null,
+                        CourseCode = s.Section != null && s.Section.Course != null ? s.Section.Course.CourseCode : null,
+                        ClassType = s.Section != null ? (ClassType?)s.Section.ClassType : null,
+                        s.StartTime,
+                        s.EndTime,
+                        RoomName = s.Room != null ? s.Room.Name : null,
+                        s.RoomId,
+                        InstructorName = s.Section != null && s.Section.Instructor != null && s.Section.Instructor.User != null ? s.Section.Instructor.User.Name : null
+                    })
+                    .ToListAsync();
+
+                return data.Select(s => new ScheduleSlotData
+                {
+                    CourseId = s.CourseId,
+                    CourseTitle = s.CourseTitle,
+                    CourseCode = s.CourseCode,
+                    ClassType = s.ClassType,
+                    StartTime = s.StartTime,
+                    EndTime = s.EndTime,
+                    RoomName = s.RoomName,
+                    RoomId = s.RoomId,
+                    InstructorName = s.InstructorName
+                }).ToList();
+            });
+
+            await Task.WhenAll(countsTask, enrollStatsTask, examsTask, scheduleTask);
+
+            var counts = await countsTask;
+            var enrollStats = await enrollStatsTask;
+            var examsResult = await examsTask;
+            var todayScheduleRaw = await scheduleTask;
+
+            var openComplaints = counts?.OpenComplaints ?? 0;
+            var unreadCount = counts?.UnreadNotifications ?? 0;
+            var attendedCount = counts?.AttendedCount ?? 0;
+            var totalCompletedSessions = counts?.TotalCompletedSessions ?? 0;
+
+            var coursesEnrolledCount = enrollStats.Count;
+            var currentCredits = enrollStats.CreditHours;
+
+            var upcomingExamsCount = examsResult.Count;
+            var nextExamDate = examsResult.NextDate;
+            var nextExamDays = nextExamDate.HasValue ? (nextExamDate.Value - now).Days : (int?)null;
+
+            var todaySchedule = todayScheduleRaw.Select(s => new
+            {
+                course_id = s.CourseId,
+                course_name = s.CourseTitle,
+                course_code = s.CourseCode,
+                type = s.ClassType.HasValue ? s.ClassType.Value.ToString().ToLower() : "lecture",
+                start_time = s.StartTime,
+                end_time = s.EndTime,
+                room = s.RoomName ?? s.RoomId,
+                instructor = s.InstructorName ?? ""
+            }).ToList();
 
             var currentWeek = activeSemester != null ? (now - activeSemester.StartDate).Days / 7 + 1 : 1;
             if (activeSemester != null && currentWeek > activeSemester.TotalWeeks) currentWeek = activeSemester.TotalWeeks;
             if (currentWeek < 1) currentWeek = 1;
 
             var registrationOpen = nextSemester != null && nextSemester.RegistrationStartDate <= now && nextSemester.RegistrationEndDate >= now;
+
+            double attendanceAvgPct = 0.0;
+            if (totalCompletedSessions > 0)
+            {
+                attendanceAvgPct = (double)attendedCount / totalCompletedSessions;
+            }
 
             var response = new
             {
@@ -133,14 +259,10 @@ namespace IbnElgm3a.Controllers.Students
                 {
                     gpa = student.GPA,
                     gpa_change = 0, 
-                    attendance_avg_pct = activeSemester != null ? await _context.AttendanceRecords
-                        .Where(a => a.StudentId == student.Id && a.Session!.Section!.Course!.SemesterId == activeSemester.Id && a.Session.AttendanceStatus == "completed")
-                        .GroupBy(a => a.StudentId)
-                        .Select(g => (double)g.Count(a => a.Status == "present" || a.Status == "late") / _context.Sessions.Count(s => s.Section!.Course!.SemesterId == activeSemester.Id && s.AttendanceStatus == "completed" && _context.Enrollments.Any(e => e.StudentId == student.Id && e.SectionId == s.SectionId)))
-                        .FirstOrDefaultAsync() : 0.0,
-                    courses_enrolled = enrollments.Count,
+                    attendance_avg_pct = attendanceAvgPct,
+                    courses_enrolled = coursesEnrolledCount,
                     credit_hours_enrolled = currentCredits,
-                    upcoming_exams_count = upcomingExams.Count,
+                    upcoming_exams_count = upcomingExamsCount,
                     next_exam_days = nextExamDays,
                     unread_count = unreadCount,
                     open_complaints = openComplaints
@@ -152,20 +274,26 @@ namespace IbnElgm3a.Controllers.Students
                     closes_in_days = (registrationOpen && nextSemester.RegistrationEndDate.HasValue) ? (nextSemester.RegistrationEndDate.Value - now).Days : (int?)null,
                     end_date = nextSemester.RegistrationEndDate
                 } : null,
-                today_schedule = todaySlots.Select(s => new
-                {
-                    course_id = s.Section?.CourseId,
-                    course_name = s.Section?.Course?.Title,
-                    course_code = s.Section?.Course?.CourseCode,
-                    type = s.Section?.ClassType.ToString().ToLower() ?? "lecture",
-                    start_time = s.StartTime,
-                    end_time = s.EndTime,
-                    room = s.Room?.Name ?? s.RoomId,
-                    instructor = s.Section?.Instructor?.User?.Name ?? ""
-                }).ToList()
+                today_schedule = todaySchedule
             };
 
+            // Cache for 15 seconds
+            _cache.Set(cacheKey, response, TimeSpan.FromSeconds(15));
+
             return Ok(response);
+        }
+
+        private class ScheduleSlotData
+        {
+            public string? CourseId { get; set; }
+            public string? CourseTitle { get; set; }
+            public string? CourseCode { get; set; }
+            public ClassType? ClassType { get; set; }
+            public string StartTime { get; set; } = string.Empty;
+            public string EndTime { get; set; } = string.Empty;
+            public string? RoomName { get; set; }
+            public string RoomId { get; set; } = string.Empty;
+            public string? InstructorName { get; set; }
         }
     }
 }
