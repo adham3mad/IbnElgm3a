@@ -1,3 +1,4 @@
+using IbnElgm3a.Attributes;
 using IbnElgm3a.Models;
 using IbnElgm3a.Models.Data;
 using IbnElgm3a.Services;
@@ -60,27 +61,24 @@ namespace IbnElgm3a.Controllers.Instructors
 
             return Ok(new
             {
-                data = new
+                semester = activeSemester?.Name ?? "",
+                courses = courses.Select(c => new
                 {
-                    semester = activeSemester?.Name ?? "",
-                    courses = courses.Select(c => new
-                    {
-                        id = c!.Id,
-                        code = c.CourseCode,
-                        name = c.Title,
-                        semester = c.Semester?.Name ?? "",
-                        week_current = activeSemester != null ? (now - activeSemester.StartDate).Days / 7 + 1 : 1,
-                        week_total = c.Semester?.TotalWeeks ?? 14,
-                        student_count = _context.Enrollments.Count(e => e.Section!.CourseId == c.Id && e.Status == Enums.EnrollmentStatus.Enrolled),
-                        status = "active",
-                        schedule_summary = _context.ScheduleSlots
-                            .Where(ss => ss.Section!.CourseId == c.Id)
-                            .Select(ss => ss.Day.ToString().Substring(0, 3) + " " + ss.StartTime)
-                            .FirstOrDefault() ?? "",
-                        progress_percent = activeSemester != null ? (int)((double)((now - activeSemester.StartDate).Days / 7 + 1) / activeSemester.TotalWeeks * 100) : 0,
-                        pending_submissions_count = _context.AssignmentSubmissions.Count(s => s.Assignment!.CourseId == c.Id && s.Status == "submitted")
-                    }).OrderBy(c => c.code).ToList()
-                }
+                    id = c!.Id,
+                    code = c.CourseCode,
+                    name = c.Title,
+                    semester = c.Semester?.Name ?? "",
+                    week_current = activeSemester != null ? (now - activeSemester.StartDate).Days / 7 + 1 : 1,
+                    week_total = c.Semester?.TotalWeeks ?? 14,
+                    student_count = _context.Enrollments.Count(e => e.Section!.CourseId == c.Id && e.Status == Enums.EnrollmentStatus.Enrolled),
+                    status = "active",
+                    schedule_summary = _context.ScheduleSlots
+                        .Where(ss => ss.Section!.CourseId == c.Id)
+                        .Select(ss => ss.Day.ToString().Substring(0, 3) + " " + ss.StartTime)
+                        .FirstOrDefault() ?? "",
+                    progress_percent = activeSemester != null ? (int)((double)((now - activeSemester.StartDate).Days / 7 + 1) / activeSemester.TotalWeeks * 100) : 0,
+                    pending_submissions_count = _context.AssignmentSubmissions.Count(s => s.Assignment!.CourseId == c.Id && s.Status == "submitted")
+                }).OrderBy(c => c.code).ToList()
             });
         }
 
@@ -118,43 +116,73 @@ namespace IbnElgm3a.Controllers.Instructors
                 })
                 .ToListAsync();
 
+            var gradesList = await _context.Grades
+                .Where(g => g.Enrollment!.Section!.CourseId == course_id)
+                .Select(g => g.Marks)
+                .ToListAsync();
+            var classAverage = gradesList.Any() ? gradesList.Average(m => (double)m) : 0.0;
+
+            var enrolledStudentIds = await _context.Enrollments
+                .Where(e => e.Section!.CourseId == course_id && e.Status == Enums.EnrollmentStatus.Enrolled)
+                .Select(e => e.StudentId)
+                .ToListAsync();
+
+            var attendanceRecords = await _context.AttendanceRecords
+                .Where(a => a.Session!.Section!.CourseId == course_id && a.Session.AttendanceStatus == "completed")
+                .Select(a => new { a.SessionId, a.StudentId, a.Status })
+                .ToListAsync();
+
+            var sessionsGrouped = attendanceRecords.GroupBy(a => a.SessionId).ToList();
+            var averageAttendanceRate = sessionsGrouped.Any()
+                ? sessionsGrouped.Average(g => (double)g.Count(a => a.Status == "present" || a.Status == "late") / g.Count())
+                : 0.0;
+
+            var studentGroups = attendanceRecords.GroupBy(a => a.StudentId).ToDictionary(g => g.Key, g => g.ToList());
+            
+            var completedSessionsCount = await _context.Sessions
+                .CountAsync(s => s.Section!.CourseId == course_id && s.AttendanceStatus == "completed");
+
+            int atRiskCount = 0;
+            if (completedSessionsCount > 0)
+            {
+                foreach (var studentId in enrolledStudentIds)
+                {
+                    if (studentGroups.TryGetValue(studentId, out var records) && records.Any())
+                    {
+                        double rate = (double)records.Count(r => r.Status == "present" || r.Status == "late") / records.Count;
+                        if (rate < 0.6)
+                        {
+                            atRiskCount++;
+                        }
+                    }
+                    else
+                    {
+                        atRiskCount++;
+                    }
+                }
+            }
+
             return Ok(new
             {
-                data = new
+                id = course.Id,
+                code = course.CourseCode,
+                name = course.Title,
+                semester = course.Semester.Name,
+                week_current = currentWeek,
+                week_total = course.Semester.TotalWeeks,
+                student_count = studentCount,
+                status = "active",
+                schedule_summary = schedule.FirstOrDefault()?.day_of_week + " " + schedule.FirstOrDefault()?.start_time,
+                progress_percent = course.Semester.TotalWeeks > 0 ? (int)((double)currentWeek / course.Semester.TotalWeeks * 100) : 0,
+                pending_submissions_count = await _context.AssignmentSubmissions.CountAsync(s => s.Assignment!.CourseId == course_id && s.Status == "submitted"),
+                overview = new
                 {
-                    id = course.Id,
-                    code = course.CourseCode,
-                    name = course.Title,
-                    semester = course.Semester.Name,
-                    week_current = currentWeek,
-                    week_total = course.Semester.TotalWeeks,
-                    student_count = studentCount,
-                    status = "active",
-                    schedule_summary = schedule.FirstOrDefault()?.day_of_week + " " + schedule.FirstOrDefault()?.start_time,
-                    progress_percent = (int)((double)currentWeek / course.Semester.TotalWeeks * 100),
-                    pending_submissions_count = await _context.AssignmentSubmissions.CountAsync(s => s.Assignment!.CourseId == course_id && s.Status == "submitted"),
-                    overview = new
-                    {
-                        class_average = await _context.Grades
-                            .Where(g => g.Enrollment!.Section!.CourseId == course_id)
-                            .AverageAsync(g => (double?)g.Marks) ?? 0.0,
-                        average_attendance_rate = await _context.AttendanceRecords
-                            .Where(a => a.Session!.Section!.CourseId == course_id && a.Session.AttendanceStatus == "completed")
-                            .GroupBy(a => a.SessionId)
-                            .Select(g => (double)g.Count(a => a.Status == "present" || a.Status == "late") / g.Count())
-                            .DefaultIfEmpty(0.0)
-                            .AverageAsync(),
-                        to_grade_count = await _context.AssignmentSubmissions.CountAsync(s => s.Assignment!.CourseId == course_id && s.Status == "submitted"),
-                        at_risk_count = await _context.Enrollments
-                            .Where(e => e.Section!.CourseId == course_id && e.Status == Enums.EnrollmentStatus.Enrolled)
-                            .CountAsync(e => _context.AttendanceRecords
-                                .Where(a => a.StudentId == e.StudentId && a.Session!.Section!.CourseId == course_id && a.Session.AttendanceStatus == "completed")
-                                .GroupBy(a => a.StudentId)
-                                .Select(g => (double)g.Count(a => a.Status == "present" || a.Status == "late") / g.Count())
-                                .FirstOrDefault() < 0.6)
-                    },
-                    recurring_schedule = schedule
-                }
+                    class_average = classAverage,
+                    average_attendance_rate = averageAttendanceRate,
+                    to_grade_count = await _context.AssignmentSubmissions.CountAsync(s => s.Assignment!.CourseId == course_id && s.Status == "submitted"),
+                    at_risk_count = atRiskCount
+                },
+                recurring_schedule = schedule
             });
         }
 
@@ -189,7 +217,7 @@ namespace IbnElgm3a.Controllers.Instructors
                     }).ToList()
                 }).ToList();
 
-            return Ok(new { data = new { weeks = grouped } });
+            return Ok(new { weeks = grouped });
         }
 
         [HttpGet("{course_id}/roster")]

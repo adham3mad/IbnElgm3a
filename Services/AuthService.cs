@@ -91,6 +91,9 @@ namespace IbnElgm3a.Services
         {
             var tokenEntity = await _context.Tokens
                 .Include(t => t.User)
+                    .ThenInclude(u => u.Role)
+                        .ThenInclude(r => r.Permissions)
+                            .ThenInclude(p => p.Feature)
                 .FirstOrDefaultAsync(t => t.TokenValue == request.RefreshToken && t.TokenType == "refresh");
 
             if (tokenEntity == null || tokenEntity.IsRevoked || tokenEntity.ExpiryDate < DateTimeOffset.UtcNow)

@@ -42,7 +42,7 @@ namespace IbnElgm3a.Controllers.Admins
             var yearPart = year.ToString().Substring(year.ToString().Length - 2);
             var facCode = faculty.Code.PadRight(4, '0').Substring(0, 4);
             var prefix = yearPart + facCode;
-            
+
             var lastNumber = await _context.Students
                 .Where(s => s.AcademicNumber.StartsWith(prefix))
                 .OrderByDescending(s => s.AcademicNumber)
@@ -258,7 +258,7 @@ namespace IbnElgm3a.Controllers.Admins
             if (request.FullNameAr != null) user.FullNameAr = request.FullNameAr;
             if (!string.IsNullOrEmpty(request.NationalId)) user.NationalId = request.NationalId;
             if (request.Phone != null) user.Phone = request.Phone;
-            
+
             if (request.BirthDate.HasValue) student.BirthDate = request.BirthDate.Value;
             if (request.Gender.HasValue) student.Gender = request.Gender.Value;
             if (request.Nationality != null) student.Nationality = request.Nationality;

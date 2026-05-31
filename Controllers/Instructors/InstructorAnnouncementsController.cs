@@ -39,22 +39,46 @@ namespace IbnElgm3a.Controllers.Instructors
                 query = query.Where(a => a.AnnouncementCourses.Any(ac => ac.CourseId == course_id));
             }
 
-            var announcements = await query
-                .OrderByDescending(a => a.CreatedAt)
+            var rawAnnouncements = await query
                 .Select(a => new
                 {
                     id = a.Id,
                     title = a.Title,
                     body = a.Body,
-                    created_at = a.CreatedAt,
-                    status = a.Status,
                     course_ids = a.AnnouncementCourses.Select(ac => ac.CourseId).ToList(),
-                    sent_count = a.SentCount,
-                    read_count = a.ReadCount
+                    audience = a.Audience,
+                    send_push = a.SendPush,
+                    has_attachment = !string.IsNullOrEmpty(a.AttachmentUrl),
+                    status = a.Status,
+                    scheduled_at = a.ScheduledAt,
+                    published_at = a.Status == "published" ? a.CreatedAt : (DateTimeOffset?)null,
+                    notified_students_count = a.SentCount,
+                    created_at = a.CreatedAt
                 })
                 .ToListAsync();
 
-            return Ok(new { data = announcements });
+            // Order by published_at DESC (nulls — drafts and scheduled — sorted last by created_at DESC)
+            var announcements = rawAnnouncements
+                .OrderByDescending(a => a.published_at.HasValue)
+                .ThenByDescending(a => a.published_at)
+                .ThenByDescending(a => a.created_at)
+                .Select(a => new
+                {
+                    a.id,
+                    a.title,
+                    a.body,
+                    a.course_ids,
+                    a.audience,
+                    a.send_push,
+                    a.has_attachment,
+                    a.status,
+                    a.scheduled_at,
+                    a.published_at,
+                    a.notified_students_count
+                })
+                .ToList();
+
+            return Ok(new { announcements = announcements });
         }
 
         [HttpPost]
@@ -63,6 +87,24 @@ namespace IbnElgm3a.Controllers.Instructors
             var userId = GetUserId();
             var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
             if (instructor == null) return Unauthorized();
+
+            if (request.CourseIds == null || !request.CourseIds.Any())
+            {
+                return BadRequest(ApiResponse<object>.CreateError("COURSE_IDS_REQUIRED", "At least one course ID must be specified."));
+            }
+
+            // Validate that all course IDs belong to this instructor
+            var instructorCourseIds = await _context.Sections
+                .Where(s => s.InstructorId == instructor.Id)
+                .Select(s => s.CourseId)
+                .Distinct()
+                .ToListAsync();
+
+            var invalidCourseIds = request.CourseIds.Except(instructorCourseIds).ToList();
+            if (invalidCourseIds.Any())
+            {
+                return BadRequest(ApiResponse<object>.CreateError("INVALID_COURSE_ID", "One or more course IDs do not belong to this instructor."));
+            }
 
             var announcement = new Announcement
             {
@@ -85,7 +127,25 @@ namespace IbnElgm3a.Controllers.Instructors
             _context.Announcements.Add(announcement);
             await _context.SaveChangesAsync();
 
-            return Created("", new { data = announcement });
+            var responseObj = new
+            {
+                announcement = new
+                {
+                    id = announcement.Id,
+                    title = announcement.Title,
+                    body = announcement.Body,
+                    course_ids = announcement.AnnouncementCourses.Select(ac => ac.CourseId).ToList(),
+                    audience = announcement.Audience,
+                    send_push = announcement.SendPush,
+                    has_attachment = !string.IsNullOrEmpty(announcement.AttachmentUrl),
+                    status = announcement.Status,
+                    scheduled_at = announcement.ScheduledAt,
+                    published_at = announcement.Status == "published" ? announcement.CreatedAt : (DateTimeOffset?)null,
+                    notified_students_count = 0
+                }
+            };
+
+            return Created("", responseObj);
         }
 
 

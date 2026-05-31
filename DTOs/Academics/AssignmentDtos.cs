@@ -27,5 +27,6 @@ namespace IbnElgm3a.DTOs.Academics
         [Range(0, 1000)]
         public int Score { get; set; }
         public string? Feedback { get; set; }
+        public bool IsDraft { get; set; } = false;
     }
 }
