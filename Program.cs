@@ -147,12 +147,20 @@ namespace IbnElgm3a
                 });
             });
 
-            // Redis Cache
-            builder.Services.AddStackExchangeRedisCache(options =>
+            // Redis Cache or Memory Cache fallback
+            var redisCs = Environment.GetEnvironmentVariable("REDIS_CS");
+            if (!string.IsNullOrEmpty(redisCs))
             {
-                options.Configuration = Environment.GetEnvironmentVariable("REDIS_CS") ?? "localhost:6379";
-                options.InstanceName = "IbnElgm3a_";
-            });
+                builder.Services.AddStackExchangeRedisCache(options =>
+                {
+                    options.Configuration = redisCs;
+                    options.InstanceName = "IbnElgm3a_";
+                });
+            }
+            else
+            {
+                builder.Services.AddDistributedMemoryCache();
+            }
 
             builder.Services.AddCors(options =>
             {
