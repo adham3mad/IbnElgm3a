@@ -44,6 +44,10 @@ namespace IbnElgm3a.Controllers.Students
             {
                 query = query.Where(c => c.Status == parsedStatus);
             }
+            var lastActiveAt = await _context.Users
+                .Where(u => u.Id == userId)
+                .Select(u => u.LastActiveAt)
+                .FirstOrDefaultAsync() ?? DateTimeOffset.MinValue;
 
             var total = await query.CountAsync();
             var complaints = await query
@@ -58,7 +62,7 @@ namespace IbnElgm3a.Controllers.Students
                     title = c.Title,
                     description = c.Description,
                     status = c.Status.ToString().ToLower(),
-                    has_unread_reply = c.LastResponseAt > (student.User!.LastActiveAt ?? DateTimeOffset.MinValue),
+                    has_unread_reply = c.LastResponseAt > lastActiveAt,
                     reply_count = _context.ComplaintMessages.Count(m => m.ComplaintId == c.Id),
                     last_reply_at = c.LastResponseAt,
                     created_at = c.CreatedAt
