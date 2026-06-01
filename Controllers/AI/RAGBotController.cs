@@ -1,11 +1,16 @@
 using IbnElgm3a.DTOs.RAGBot;
 using IbnElgm3a.Models;
 using IbnElgm3a.Services;
+using IbnElgm3a.Attributes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using System.Text;
+using System.IO;
 
 namespace IbnElgm3a.Controllers.AI
 {
@@ -16,24 +21,50 @@ namespace IbnElgm3a.Controllers.AI
     {
         private readonly IRAGBotService _ragBotService;
         private readonly AppDbContext _context;
+        private readonly IMemoryCache _cache;
 
-        public RAGBotController(IRAGBotService ragBotService, AppDbContext context)
+        private record StudentCachedInfo(string Id, string? FacultyId, string? DepartmentName);
+
+        public RAGBotController(IRAGBotService ragBotService, AppDbContext context, IMemoryCache cache)
         {
             _ragBotService = ragBotService;
             _context = context;
+            _cache = cache;
         }
 
         private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
 
-        [HttpPost("chat")] 
+        private async Task<StudentCachedInfo?> GetStudentCachedInfoAsync(string userId)
+        {
+            var cacheKey = $"student_rag_info_{userId}";
+            if (!_cache.TryGetValue(cacheKey, out StudentCachedInfo? studentInfo))
+            {
+                studentInfo = await _context.Students
+                    .AsNoTracking()
+                    .Where(s => s.UserId == userId)
+                    .Select(s => new StudentCachedInfo(
+                        s.Id,
+                        s.User != null ? s.User.FacultyId : null,
+                        s.Department != null ? s.Department.Name : null
+                    ))
+                    .FirstOrDefaultAsync();
+
+                if (studentInfo != null)
+                {
+                    var cacheEntryOptions = new MemoryCacheEntryOptions()
+                        .SetSlidingExpiration(TimeSpan.FromMinutes(30))
+                        .SetAbsoluteExpiration(TimeSpan.FromHours(2));
+                    _cache.Set(cacheKey, studentInfo, cacheEntryOptions);
+                }
+            }
+            return studentInfo;
+        }
+
+        [HttpPost("chat")]
         public async Task<IActionResult> Chat([FromBody] ChatInputDto input)
         {
             var userId = GetUserId();
-            var student = await _context.Students
-                .Include(s => s.User)
-                .Include(s => s.Department)
-                .AsNoTracking()
-                .FirstOrDefaultAsync(s => s.UserId == userId);
+            var student = await GetStudentCachedInfoAsync(userId);
 
             if (student == null) return Unauthorized();
 
@@ -43,9 +74,9 @@ namespace IbnElgm3a.Controllers.AI
                 Session_Id = input.Session_Id,
                 Top_K = input.Top_K,
                 Tags = input.Tags,
-                Student_Id = student.AcademicNumber,
-                Faculty_Id = student.User?.FacultyId,
-                Department = student.Department?.Name
+                Student_Id = student.Id,
+                Faculty_Id = student.FacultyId,
+                Department = student.DepartmentName
             };
 
             var response = await _ragBotService.ChatAsync(request);
@@ -56,11 +87,7 @@ namespace IbnElgm3a.Controllers.AI
         public async Task ChatStream([FromBody] ChatInputDto input)
         {
             var userId = GetUserId();
-            var student = await _context.Students
-                .Include(s => s.User)
-                .Include(s => s.Department)
-                .AsNoTracking()
-                .FirstOrDefaultAsync(s => s.UserId == userId);
+            var student = await GetStudentCachedInfoAsync(userId);
 
             if (student == null)
             {
@@ -74,19 +101,32 @@ namespace IbnElgm3a.Controllers.AI
                 Session_Id = input.Session_Id,
                 Top_K = input.Top_K,
                 Tags = input.Tags,
-                Student_Id = student.AcademicNumber,
-                Faculty_Id = student.User?.FacultyId,
-                Department = student.Department?.Name
+                Student_Id = student.Id,
+                Faculty_Id = student.FacultyId,
+                Department = student.DepartmentName
             };
+
+            // Disable response buffering for real-time SSE streaming
+            var responseFeature = HttpContext.Features.Get<IHttpResponseBodyFeature>();
+            if (responseFeature != null)
+            {
+                responseFeature.DisableBuffering();
+            }
 
             Response.ContentType = "text/event-stream";
             Response.Headers.Append("Cache-Control", "no-cache");
             Response.Headers.Append("Connection", "keep-alive");
+            Response.Headers.Append("X-Accel-Buffering", "no"); // For Nginx reverse-proxy support
 
             var stream = await _ragBotService.ChatStreamAsync(request);
             
-            await stream.CopyToAsync(Response.Body);
-            await Response.Body.FlushAsync();
+            var buffer = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+            {
+                await Response.Body.WriteAsync(buffer, 0, bytesRead);
+                await Response.Body.FlushAsync();
+            }
         }
 
         [HttpPost("ingest/student")]
