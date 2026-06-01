@@ -50,8 +50,9 @@ namespace IbnElgm3a.Controllers.Instructors
             {
                 start = DateTime.Parse(week_start).Date;
             }
+            start = DateTime.SpecifyKind(start, DateTimeKind.Utc);
+            var end = DateTime.SpecifyKind(start.AddDays(7), DateTimeKind.Utc);
 
-            var end = start.AddDays(7);
             var activeSemester = await _context.Semesters
                 .AsNoTracking()
                 .Where(s => s.StartDate <= start && s.EndDate >= start)
@@ -97,14 +98,11 @@ namespace IbnElgm3a.Controllers.Instructors
 
             return Ok(new
             {
-                data = new
-                {
-                    week_start = start.ToString("yyyy-MM-dd"),
-                    week_end = start.AddDays(6).ToString("yyyy-MM-dd"),
-                    week_number = activeSemester != null ? (start - activeSemester.StartDate).Days / 7 + 1 : 1,
-                    semester = activeSemester?.Name ?? "",
-                    days = days
-                }
+                week_start = start.ToString("yyyy-MM-dd"),
+                week_end = start.AddDays(6).ToString("yyyy-MM-dd"),
+                week_number = activeSemester != null ? (start - activeSemester.StartDate).Days / 7 + 1 : 1,
+                semester = activeSemester?.Name ?? "",
+                days = days
             });
         }
 
@@ -207,6 +205,7 @@ namespace IbnElgm3a.Controllers.Instructors
             {
                 return BadRequest(new { error = "VALIDATION_ERROR", message = _localizer.GetMessage("INVALID_DATE_FORMAT") });
             }
+            parsedDate = DateTime.SpecifyKind(parsedDate.Date, DateTimeKind.Utc);
 
             var conflicts = await GetConflictingSessionsAsync(
                 courseId: course_id,
@@ -258,6 +257,7 @@ namespace IbnElgm3a.Controllers.Instructors
             {
                 return BadRequest(new { error = "VALIDATION_ERROR", message = _localizer.GetMessage("INVALID_DATE_FORMAT") });
             }
+            sessionDate = DateTime.SpecifyKind(sessionDate.Date, DateTimeKind.Utc);
 
             var semester = await _context.Semesters.AsNoTracking().FirstOrDefaultAsync(s => s.Id == section.SemesterId);
             if (semester == null)
@@ -271,7 +271,7 @@ namespace IbnElgm3a.Controllers.Instructors
                 var tempDate = sessionDate.AddDays(7);
                 while (tempDate.Date <= semester.EndDate.Date)
                 {
-                    proposedDates.Add(tempDate);
+                    proposedDates.Add(DateTime.SpecifyKind(tempDate.Date, DateTimeKind.Utc));
                     tempDate = tempDate.AddDays(7);
                 }
             }
@@ -354,7 +354,7 @@ namespace IbnElgm3a.Controllers.Instructors
                         Id = Guid.NewGuid().ToString(),
                         SectionId = section.Id,
                         Type = request.Type,
-                        Date = tempDate,
+                        Date = DateTime.SpecifyKind(tempDate.Date, DateTimeKind.Utc),
                         StartTime = request.StartTime,
                         EndTime = request.EndTime,
                         RoomName = request.Room,
@@ -447,6 +447,11 @@ namespace IbnElgm3a.Controllers.Instructors
                 {
                     return BadRequest(new { error = "VALIDATION_ERROR", message = _localizer.GetMessage("INVALID_DATE_FORMAT") });
                 }
+                proposedDate = DateTime.SpecifyKind(proposedDate.Date, DateTimeKind.Utc);
+            }
+            else
+            {
+                proposedDate = DateTime.SpecifyKind(proposedDate.Date, DateTimeKind.Utc);
             }
             var proposedStartTime = request.StartTime ?? session.StartTime;
             var proposedEndTime = request.EndTime ?? session.EndTime;
@@ -609,11 +614,12 @@ namespace IbnElgm3a.Controllers.Instructors
             string? room,
             string? excludeSessionId = null)
         {
+            var utcDate = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
             var query = _context.Sessions
                 .AsNoTracking()
                 .Include(s => s.Section)
                     .ThenInclude(sec => sec!.Course)
-                .Where(s => s.Date.Date == date.Date &&
+                .Where(s => s.Date == utcDate &&
                             s.StartTime.CompareTo(endTime) < 0 && 
                             s.EndTime.CompareTo(startTime) > 0);
 
