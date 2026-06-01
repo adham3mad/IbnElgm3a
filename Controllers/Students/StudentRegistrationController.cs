@@ -35,6 +35,13 @@ namespace IbnElgm3a.Controllers.Students
                 .AsNoTracking()
                 .Where(s => s.StartDate > now)
                 .OrderBy(s => s.StartDate)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.Name,
+                    s.RegistrationStartDate,
+                    s.RegistrationEndDate
+                })
                 .FirstOrDefaultAsync();
 
             if (nextSemester == null)
@@ -51,12 +58,22 @@ namespace IbnElgm3a.Controllers.Students
             var closesInHours = (isOpen && nextSemester.RegistrationEndDate.HasValue) ? (int)(nextSemester.RegistrationEndDate.Value - now).TotalHours : 0;
 
             var userId = GetUserId();
-            var student = await _context.Students.AsNoTracking().Include(s => s.User).FirstOrDefaultAsync(s => s.UserId == userId);
+            var student = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.UserId == userId)
+                .Select(s => new
+                {
+                    s.Id,
+                    UserStatus = s.User != null ? (IbnElgm3a.Enums.UserStatus?)s.User.Status : null
+                })
+                .FirstOrDefaultAsync();
             
+            if (student == null) return Unauthorized();
+
             bool isEligible = true;
             string? ineligibilityReason = null;
 
-            if (student?.User?.Status != IbnElgm3a.Enums.UserStatus.Active)
+            if (student.UserStatus != IbnElgm3a.Enums.UserStatus.Active)
             {
                 isEligible = false;
                 ineligibilityReason = _localizer.GetMessage("INACTIVE_ACCOUNT");
@@ -266,8 +283,13 @@ namespace IbnElgm3a.Controllers.Students
         public async Task<IActionResult> GetRegistrationStatus([FromQuery] string? semester_id = null)
         {
             var userId = GetUserId();
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
-            if (student == null) return Unauthorized();
+            var studentId = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.UserId == userId)
+                .Select(s => s.Id)
+                .FirstOrDefaultAsync();
+
+            if (studentId == null) return Unauthorized();
 
             var activeSemester = semester_id != null 
                 ? await _context.Semesters.AsNoTracking().FirstOrDefaultAsync(s => s.Id == semester_id)
@@ -277,12 +299,32 @@ namespace IbnElgm3a.Controllers.Students
 
             var request = await _context.RegistrationRequests
                 .AsNoTracking()
-                .Include(r => r.Courses)
-                    .ThenInclude(rc => rc.Course)
-                .Include(r => r.Courses)
-                    .ThenInclude(rc => rc.Section)
-                        .ThenInclude(sec => sec!.ScheduleSlots)
-                .FirstOrDefaultAsync(r => r.StudentId == student.Id && r.SemesterId == activeSemester.Id);
+                .Where(r => r.StudentId == studentId && r.SemesterId == activeSemester.Id)
+                .Select(r => new
+                {
+                    r.Status,
+                    r.RefCode,
+                    r.SubmittedAt,
+                    r.ReviewedAt,
+                    r.ReviewerNote,
+                    Courses = r.Courses.Select(rc => new
+                    {
+                        rc.CourseId,
+                        CourseCode = rc.Course != null ? rc.Course.CourseCode : null,
+                        CourseTitle = rc.Course != null ? rc.Course.Title : null,
+                        rc.SectionId,
+                        SectionName = rc.Section != null ? rc.Section.Name : null,
+                        ScheduleSlots = rc.Section != null ? rc.Section.ScheduleSlots.Select(ss => new
+                        {
+                            ss.Day,
+                            ss.StartTime,
+                            ss.EndTime
+                        }).ToList() : null,
+                        CreditHours = rc.Course != null ? rc.Course.CreditHours : 0,
+                        rc.ApprovalStatus
+                    }).ToList()
+                })
+                .FirstOrDefaultAsync();
 
             if (request != null)
             {
@@ -296,16 +338,18 @@ namespace IbnElgm3a.Controllers.Students
                     submitted_at = request.SubmittedAt,
                     reviewed_at = request.ReviewedAt,
                     reviewer_note = request.ReviewerNote,
-                    total_credit_hours = request.Courses.Sum(c => c.Course?.CreditHours ?? 0),
+                    total_credit_hours = request.Courses.Sum(c => c.CreditHours),
                     courses = request.Courses.Select(rc => new
                     {
                         course_id = rc.CourseId,
-                        course_code = rc.Course?.CourseCode,
-                        course_name = rc.Course?.Title,
+                        course_code = rc.CourseCode,
+                        course_name = rc.CourseTitle,
                         section_id = rc.SectionId,
-                        section_label = rc.Section?.Name,
-                        schedule = rc.Section?.ScheduleSlots.Select(ss => $"{ss.Day} {ss.StartTime}-{ss.EndTime}").FirstOrDefault() ?? "TBD",
-                        credit_hours = rc.Course?.CreditHours,
+                        section_label = rc.SectionName,
+                        schedule = rc.ScheduleSlots != null && rc.ScheduleSlots.Any()
+                            ? $"{rc.ScheduleSlots.First().Day} {rc.ScheduleSlots.First().StartTime}-{rc.ScheduleSlots.First().EndTime}"
+                            : "TBD",
+                        credit_hours = rc.CreditHours,
                         approval_status = rc.ApprovalStatus
                     }).ToList(),
                     conflicts = new List<object>()
@@ -314,14 +358,44 @@ namespace IbnElgm3a.Controllers.Students
             else
             {
                 var draft = await _context.RegistrationDrafts
-                    .Include(d => d.Courses)
-                        .ThenInclude(dc => dc.Course)
-                    .Include(d => d.Courses)
-                        .ThenInclude(dc => dc.Section)
-                            .ThenInclude(sec => sec!.ScheduleSlots)
-                    .FirstOrDefaultAsync(d => d.StudentId == student.Id && d.SemesterId == activeSemester.Id);
+                    .AsNoTracking()
+                    .Where(d => d.StudentId == studentId && d.SemesterId == activeSemester.Id)
+                    .Select(d => new
+                    {
+                        d.Id,
+                        Courses = d.Courses.Select(dc => new
+                        {
+                            dc.CourseId,
+                            CourseCode = dc.Course != null ? dc.Course.CourseCode : null,
+                            CourseTitle = dc.Course != null ? dc.Course.Title : null,
+                            dc.SectionId,
+                            SectionName = dc.Section != null ? dc.Section.Name : null,
+                            ScheduleSlots = dc.Section != null ? dc.Section.ScheduleSlots.Select(ss => new
+                            {
+                                ss.Day,
+                                ss.StartTime,
+                                ss.EndTime
+                            }).ToList() : null,
+                            CreditHours = dc.Course != null ? dc.Course.CreditHours : 0
+                        }).ToList()
+                    })
+                    .FirstOrDefaultAsync();
 
                 if (draft == null) return Ok(new { status = "none", semester_id = activeSemester.Id, conflicts = new List<object>() });
+
+                var fakeDraftCourses = draft.Courses.Select(c => new RegistrationDraftCourse
+                {
+                    CourseId = c.CourseId,
+                    Course = new Course { CourseCode = c.CourseCode ?? "", CreditHours = c.CreditHours },
+                    SectionId = c.SectionId,
+                    Section = c.SectionName != null ? new Section 
+                    { 
+                        Name = c.SectionName,
+                        ScheduleSlots = c.ScheduleSlots != null 
+                            ? c.ScheduleSlots.Select(ss => new ScheduleSlot { Day = ss.Day, StartTime = ss.StartTime, EndTime = ss.EndTime }).ToList() 
+                            : new List<ScheduleSlot>()
+                    } : null
+                }).ToList();
 
                 return Ok(new
                 {
@@ -329,19 +403,21 @@ namespace IbnElgm3a.Controllers.Students
                     semester_name = activeSemester.Name,
                     status = "draft",
                     draft_id = draft.Id,
-                    total_credit_hours = draft.Courses.Sum(c => c.Course?.CreditHours ?? 0),
+                    total_credit_hours = draft.Courses.Sum(c => c.CreditHours),
                     courses = draft.Courses.Select(dc => new
                     {
                         course_id = dc.CourseId,
-                        course_code = dc.Course?.CourseCode,
-                        course_name = dc.Course?.Title,
+                        course_code = dc.CourseCode,
+                        course_name = dc.CourseTitle,
                         section_id = dc.SectionId,
-                        section_label = dc.Section?.Name,
-                        schedule = dc.Section?.ScheduleSlots.Select(ss => $"{ss.Day} {ss.StartTime}-{ss.EndTime}").FirstOrDefault() ?? "TBD",
-                        credit_hours = dc.Course?.CreditHours,
+                        section_label = dc.SectionName,
+                        schedule = dc.ScheduleSlots != null && dc.ScheduleSlots.Any()
+                            ? $"{dc.ScheduleSlots.First().Day} {dc.ScheduleSlots.First().StartTime}-{dc.ScheduleSlots.First().EndTime}"
+                            : "TBD",
+                        credit_hours = dc.CreditHours,
                         approval_status = (string?)null
                     }).ToList(),
-                    conflicts = CalculateConflicts(draft.Courses.ToList())
+                    conflicts = CalculateConflicts(fakeDraftCourses)
                 });
             }
         }

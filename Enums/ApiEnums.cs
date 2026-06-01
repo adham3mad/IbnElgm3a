@@ -155,7 +155,9 @@ namespace IbnElgm3a.Enums
         [EnumMember(Value = "lab")]
         Lab,
         [EnumMember(Value = "tutorial")]
-        Tutorial
+        Tutorial,
+        [EnumMember(Value = "office_hours")]
+        OfficeHours
     }
 
     [TypeConverter(typeof(ScheduleRecurrenceConverter))]

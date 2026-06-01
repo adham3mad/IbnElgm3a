@@ -20,12 +20,14 @@ namespace IbnElgm3a.Controllers.Instructors
         private readonly AppDbContext _context;
         private readonly ILocalizationService _localizer;
         private readonly INotificationService _notificationService;
+        private readonly IFileStorageService _fileStorage;
 
-        public InstructorAssignmentsController(AppDbContext context, ILocalizationService localizer, INotificationService notificationService)
+        public InstructorAssignmentsController(AppDbContext context, ILocalizationService localizer, INotificationService notificationService, IFileStorageService fileStorage)
         {
             _context = context;
             _localizer = localizer;
             _notificationService = notificationService;
+            _fileStorage = fileStorage;
         }
 
         private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
@@ -72,6 +74,7 @@ namespace IbnElgm3a.Controllers.Instructors
                         .Where(s => s.AssignmentId == a.Id && s.Status == "graded")
                         .Select(s => (double?)s.Score)
                         .Average(),
+                    attachment_url = a.AttachmentUrl,
                     created_at = a.CreatedAt
                 })
                 .ToListAsync();
@@ -97,6 +100,7 @@ namespace IbnElgm3a.Controllers.Instructors
                     a.total_enrolled,
                     a.to_grade_count,
                     a.average_score,
+                    a.attachment_url,
                     a.created_at
                 })
                 .ToList();
@@ -105,7 +109,7 @@ namespace IbnElgm3a.Controllers.Instructors
         }
 
         [HttpPost("courses/{course_id}/assignments")]
-        public async Task<IActionResult> CreateAssignment(string course_id, [FromBody] AssignmentRequest request)
+        public async Task<IActionResult> CreateAssignment(string course_id, [FromForm] AssignmentRequest request)
         {
             var userId = GetUserId();
             var instructor = await _context.Instructors.AsNoTracking().FirstOrDefaultAsync(i => i.UserId == userId);
@@ -113,6 +117,16 @@ namespace IbnElgm3a.Controllers.Instructors
 
             var isTeaching = await _context.Sections.AsNoTracking().AnyAsync(s => s.CourseId == course_id && s.InstructorId == instructor.Id);
             if (!isTeaching) return Forbid();
+
+            string? attachmentUrl = null;
+            if (request.File != null)
+            {
+                attachmentUrl = await _fileStorage.SaveFileAsync(request.File, "uploads/assignments");
+            }
+            else if (!string.IsNullOrEmpty(request.AttachmentUrl))
+            {
+                attachmentUrl = request.AttachmentUrl;
+            }
 
             var assignment = new Assignment
             {
@@ -123,7 +137,7 @@ namespace IbnElgm3a.Controllers.Instructors
                 MaxPoints = request.MaxPoints,
                 Status = "published",
                 AllowLateSubmissions = request.AllowLateSubmissions,
-                AttachmentUrl = request.AttachmentUrl
+                AttachmentUrl = attachmentUrl
             };
 
             _context.Assignments.Add(assignment);
@@ -146,6 +160,7 @@ namespace IbnElgm3a.Controllers.Instructors
                     total_enrolled = await _context.Enrollments.CountAsync(e => e.Section!.CourseId == course_id && e.Status == Enums.EnrollmentStatus.Enrolled),
                     to_grade_count = 0,
                     average_score = (double?)null,
+                    attachment_url = assignment.AttachmentUrl,
                     created_at = assignment.CreatedAt
                 }
             };
@@ -154,7 +169,7 @@ namespace IbnElgm3a.Controllers.Instructors
         }
 
         [HttpPatch("assignments/{assignment_id}")]
-        public async Task<IActionResult> UpdateAssignment(string assignment_id, [FromBody] AssignmentRequest request)
+        public async Task<IActionResult> UpdateAssignment(string assignment_id, [FromForm] AssignmentRequest request)
         {
             var userId = GetUserId();
             var instructor = await _context.Instructors.AsNoTracking().FirstOrDefaultAsync(i => i.UserId == userId);
@@ -171,7 +186,28 @@ namespace IbnElgm3a.Controllers.Instructors
             if (request.DueDate != default) assignment.DueDate = DateTime.SpecifyKind(request.DueDate, DateTimeKind.Utc);
             if (request.MaxPoints > 0) assignment.MaxPoints = request.MaxPoints;
             assignment.AllowLateSubmissions = request.AllowLateSubmissions;
-            if (request.AttachmentUrl != null) assignment.AttachmentUrl = request.AttachmentUrl;
+
+            if (request.File != null)
+            {
+                if (!string.IsNullOrEmpty(assignment.AttachmentUrl))
+                {
+                    try
+                    {
+                        await _fileStorage.DeleteFileAsync(assignment.AttachmentUrl, "uploads/assignments");
+                    }
+                    catch
+                    {
+                        // Ignore deletion errors for robust execution
+                    }
+                }
+
+                var fileUrl = await _fileStorage.SaveFileAsync(request.File, "uploads/assignments");
+                assignment.AttachmentUrl = fileUrl;
+            }
+            else if (request.AttachmentUrl != null)
+            {
+                assignment.AttachmentUrl = request.AttachmentUrl;
+            }
 
             await _context.SaveChangesAsync();
 
@@ -196,6 +232,7 @@ namespace IbnElgm3a.Controllers.Instructors
                         .Where(s => s.AssignmentId == assignment.Id && s.Status == "graded")
                         .Select(s => (double?)s.Score)
                         .AverageAsync(),
+                    attachment_url = assignment.AttachmentUrl,
                     created_at = assignment.CreatedAt
                 }
             };

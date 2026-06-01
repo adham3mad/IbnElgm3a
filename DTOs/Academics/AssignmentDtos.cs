@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
 
 namespace IbnElgm3a.DTOs.Academics
 {
@@ -20,6 +21,7 @@ namespace IbnElgm3a.DTOs.Academics
 
         public bool AllowLateSubmissions { get; set; }
         public string? AttachmentUrl { get; set; }
+        public IFormFile? File { get; set; }
     }
 
     public class GradeRequest

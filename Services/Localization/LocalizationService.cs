@@ -117,6 +117,10 @@ namespace IbnElgm3a.Services.Localization
                     { "CONFLICTS_WITH", "يتعارض مع" },
                     { "NOTIFICATION_NOT_FOUND", "التنبيه غير موجود" },
                     { "NOTIFICATIONS_MARKED_READ", "تم تحديد جميع التنبيهات كمقروءة" },
+                    { "INVALID_DATE_FORMAT", "صيغة التاريخ غير صالحة" },
+                    { "SECTION_NOT_FOUND", "لم يتم العثور على المجموعة لهذا المقرر والمحاضر" },
+                    { "ATTENDANCE_EXISTS", "لا يمكن حذف جلسة تم تسجيل الحضور فيها بالفعل. يرجى إغلاق سجل الحضور أولاً" },
+                    { "ATTENDANCE_EXISTS_FUTURE", "لا يمكن حذف الجلسات المتكررة لأن جلسة واحدة أو أكثر من الجلسات المستقبلية مسجل بها حضور" },
 
                     // NFC Attendance
                     { "NFC_INVALID_SECRET", "الرمز السري غير صحيح" },
@@ -254,6 +258,10 @@ namespace IbnElgm3a.Services.Localization
                     { "CONFLICTS_WITH", "conflicts with" },
                     { "NOTIFICATION_NOT_FOUND", "Notification not found." },
                     { "NOTIFICATIONS_MARKED_READ", "All notifications marked as read." },
+                    { "INVALID_DATE_FORMAT", "Invalid date format." },
+                    { "SECTION_NOT_FOUND", "No section found for this course and instructor." },
+                    { "ATTENDANCE_EXISTS", "Cannot delete a session that has recorded attendance. Close the attendance record first." },
+                    { "ATTENDANCE_EXISTS_FUTURE", "Cannot delete recurring sessions because one or more future sessions have recorded attendance." },
 
                     // NFC Attendance
                     { "NFC_INVALID_SECRET", "Invalid secret" },
