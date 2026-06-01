@@ -31,73 +31,99 @@ namespace IbnElgm3a.Controllers.Students
         public async Task<IActionResult> GetExams([FromQuery] ExamType? type = null, [FromQuery] string? semester_id = null)
         {
             var userId = GetUserId();
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
-            if (student == null) return Unauthorized();
-
-            var activeSemester = semester_id != null 
-                ? await _context.Semesters.FindAsync(semester_id)
-                : await _context.Semesters.OrderByDescending(s => s.StartDate).FirstOrDefaultAsync();
-
-            if (activeSemester == null) return NotFound(new { message = _localizer.GetMessage("SEMESTER_NOT_FOUND") });
-
-            var enrollments = await _context.Enrollments
-                .Include(e => e.Section)
-                .ThenInclude(sec => sec!.Course)
-                .Include(e => e.Section)
-                .ThenInclude(sec => sec!.Instructor)
-                .ThenInclude(i => i!.User)
-                .Where(e => e.StudentId == student.Id && e.Status == EnrollmentStatus.Enrolled)
-                .ToListAsync();
-
-            var courseIds = enrollments.Select(e => e.Section?.CourseId).Where(id => id != null).ToList();
-
-            var query = _context.Exams
-                .Include(e => e.Course)
-                .Include(e => e.Hall)
-                .Where(e => courseIds.Contains(e.CourseId) && e.SemesterId == activeSemester.Id && e.Status == ExamStatus.Published)
-                .AsQueryable();
-
-            if (type.HasValue)
-            {
-                query = query.Where(e => e.Type == type.Value);
-            }
-
-            var exams = await query.ToListAsync();
             var now = DateTimeOffset.UtcNow;
 
-            var nextExamDays = exams.Where(e => e.Date >= now).OrderBy(e => e.Date).FirstOrDefault() != null 
-                ? (exams.Where(e => e.Date >= now).OrderBy(e => e.Date).First().Date - now).Days 
-                : (int?)null;
+            // Single query: fetch student ID
+            var studentId = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.UserId == userId)
+                .Select(s => s.Id)
+                .FirstOrDefaultAsync();
+
+            if (studentId == null) return Unauthorized();
+
+            // Fetch active semester (lightweight)
+            var activeSemesterId = semester_id != null
+                ? semester_id
+                : await _context.Semesters
+                    .AsNoTracking()
+                    .OrderByDescending(s => s.StartDate)
+                    .Select(s => s.Id)
+                    .FirstOrDefaultAsync();
+
+            if (activeSemesterId == null) return NotFound(new { message = _localizer.GetMessage("SEMESTER_NOT_FOUND") });
+
+            // Build exam query with enrolled-course filter using sub-select
+            var examQuery = _context.Exams
+                .AsNoTracking()
+                .Where(e => e.SemesterId == activeSemesterId
+                    && e.Status == ExamStatus.Published
+                    && _context.Enrollments.Any(en =>
+                        en.StudentId == studentId
+                        && en.Section!.CourseId == e.CourseId
+                        && en.Status == EnrollmentStatus.Enrolled));
+
+            // Apply type filter if provided
+            if (type.HasValue)
+            {
+                examQuery = examQuery.Where(e => e.Type == type.Value);
+            }
+
+            // Fetch exams with projection (no Include)
+            var exams = await examQuery
+                .Select(e => new
+                {
+                    Id = e.Id,
+                    CourseId = e.CourseId,
+                    CourseCode = e.Course != null ? e.Course.CourseCode : null,
+                    CourseTitle = e.Course != null ? e.Course.Title : null,
+                    Type = e.Type,
+                    Date = e.Date,
+                    StartTime = e.StartTime,
+                    DurationMinutes = e.DurationMinutes,
+                    HallName = e.Hall != null ? e.Hall.Name : null,
+                    HasSeatPlan = e.HasSeatPlan,
+                    SeatPlanPdfUrl = e.SeatPlanPdfUrl,
+                    InstructorName = _context.Enrollments
+                        .Where(en => en.StudentId == studentId && en.Section!.CourseId == e.CourseId && en.Status == EnrollmentStatus.Enrolled)
+                        .Select(en => en.Section!.Instructor != null && en.Section.Instructor.User != null ? en.Section.Instructor.User.Name : null)
+                        .FirstOrDefault()
+                })
+                .ToListAsync();
+
+            var nextExamDays = exams
+                .Where(e => e.Date >= now)
+                .OrderBy(e => e.Date)
+                .Select(e => (int?)((e.Date - now).Days))
+                .FirstOrDefault();
 
             var result = new
             {
-                semester_id = activeSemester.Id,
+                semester_id = activeSemesterId,
                 next_exam_days = nextExamDays,
-                exams = exams.Select(e => {
-                    var courseEnrollment = enrollments.FirstOrDefault(en => en.Section?.CourseId == e.CourseId);
-                    return new
+                exams = exams.Select(e => new
+                {
+                    id = e.Id,
+                    course_id = e.CourseId,
+                    course_code = e.CourseCode,
+                    course_name = e.CourseTitle,
+                    type = e.Type.ToString().ToLower(),
+                    date = e.Date.ToString("yyyy-MM-dd"),
+                    start_time = e.StartTime,
+                    end_time = DateTime.ParseExact(e.StartTime, "HH:mm", null).AddMinutes(e.DurationMinutes).ToString("HH:mm"),
+                    duration_minutes = e.DurationMinutes,
+                    hall = e.HallName ?? "",
+                    floor = "Ground Floor",
+                    seat_assignment = e.HasSeatPlan ? (object)new
                     {
-                        id = e.Id,
-                        course_id = e.CourseId,
-                        course_code = e.Course?.CourseCode,
-                        course_name = e.Course?.Title,
-                        type = e.Type.ToString().ToLower(),
-                        date = e.Date.ToString("yyyy-MM-dd"),
-                        start_time = e.StartTime,
-                        end_time = DateTime.ParseExact(e.StartTime, "HH:mm", null).AddMinutes(e.DurationMinutes).ToString("HH:mm"),
-                        duration_minutes = e.DurationMinutes,
-                        hall = e.Hall?.Name ?? "",
-                        floor = "Ground Floor", // static dummy
-                        seat_assignment = e.HasSeatPlan ? (object)new {
-                            published = true,
-                            row = "B", // logic omitted since model doesn't store student-specific seat
-                            seat_number = 14,
-                            seat_label = "Row B, No. 14",
-                            seat_plan_pdf_url = e.SeatPlanPdfUrl
-                        } : new { published = false },
-                        instructor = courseEnrollment?.Section?.Instructor?.User?.Name ?? "",
-                        days_until = (e.Date - now).Days
-                    };
+                        published = true,
+                        row = "B",
+                        seat_number = 14,
+                        seat_label = "Row B, No. 14",
+                        seat_plan_pdf_url = e.SeatPlanPdfUrl
+                    } : new { published = false },
+                    instructor = e.InstructorName ?? "",
+                    days_until = (e.Date - now).Days
                 }).ToList()
             };
 
@@ -108,18 +134,44 @@ namespace IbnElgm3a.Controllers.Students
         public async Task<IActionResult> GetExamSeat(string id)
         {
             var userId = GetUserId();
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
-            if (student == null) return Unauthorized();
+
+            var studentId = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.UserId == userId)
+                .Select(s => s.Id)
+                .FirstOrDefaultAsync();
+
+            if (studentId == null) return Unauthorized();
 
             var exam = await _context.Exams
-                .Include(e => e.Course)
-                .Include(e => e.Hall)
-                .FirstOrDefaultAsync(e => e.Id == id);
+                .AsNoTracking()
+                .Where(e => e.Id == id)
+                .Select(e => new
+                {
+                    e.Id,
+                    CourseId = e.CourseId,
+                    CourseCode = e.Course != null ? e.Course.CourseCode : null,
+                    CourseTitle = e.Course != null ? e.Course.Title : null,
+                    e.Type,
+                    e.Date,
+                    e.StartTime,
+                    HallName = e.Hall != null ? e.Hall.Name : null,
+                    e.HasSeatPlan,
+                    e.SeatPlanPdfUrl,
+                    e.LayoutUrl
+                })
+                .FirstOrDefaultAsync();
 
             if (exam == null) return NotFound(new { error = "not_found", message = _localizer.GetMessage("EXAM_NOT_FOUND") });
 
             // Ensure enrolled
-            var isEnrolled = await _context.Enrollments.AnyAsync(en => en.StudentId == student.Id && en.Section != null && en.Section.CourseId == exam.CourseId && en.Status == EnrollmentStatus.Enrolled);
+            var isEnrolled = await _context.Enrollments
+                .AsNoTracking()
+                .AnyAsync(en => en.StudentId == studentId
+                    && en.Section != null
+                    && en.Section.CourseId == exam.CourseId
+                    && en.Status == EnrollmentStatus.Enrolled);
+
             if (!isEnrolled) return NotFound(new { error = "not_found", message = _localizer.GetMessage("EXAM_NOT_FOUND") });
 
             if (!exam.HasSeatPlan)
@@ -138,12 +190,12 @@ namespace IbnElgm3a.Controllers.Students
             return Ok(new
             {
                 exam_id = exam.Id,
-                course_code = exam.Course?.CourseCode,
-                course_name = exam.Course?.Title,
+                course_code = exam.CourseCode,
+                course_name = exam.CourseTitle,
                 type = exam.Type.ToString().ToLower(),
                 date = exam.Date.ToString("yyyy-MM-dd"),
                 start_time = exam.StartTime,
-                hall = exam.Hall?.Name ?? "",
+                hall = exam.HallName ?? "",
                 floor = "Ground Floor",
                 seat_assignment = new
                 {

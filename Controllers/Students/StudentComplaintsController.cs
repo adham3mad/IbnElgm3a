@@ -33,21 +33,30 @@ namespace IbnElgm3a.Controllers.Students
         public async Task<IActionResult> GetComplaints([FromQuery] ComplaintStatus? status = null, [FromQuery] int page = 1, [FromQuery] int per_page = 20)
         {
             var userId = GetUserId();
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
-            if (student == null) return Unauthorized();
+
+            // Single query: fetch student ID and lastActiveAt together
+            var userData = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.UserId == userId)
+                .Select(s => new
+                {
+                    s.Id,
+                    LastActiveAt = s.User != null ? s.User.LastActiveAt : (DateTimeOffset?)null
+                })
+                .FirstOrDefaultAsync();
+
+            if (userData == null) return Unauthorized();
+
+            var lastActiveAt = userData.LastActiveAt ?? DateTimeOffset.MinValue;
 
             var query = _context.Complaints
-                .Where(c => c.StudentId == student.Id)
-                .AsQueryable();
+                .AsNoTracking()
+                .Where(c => c.StudentId == userData.Id);
 
             if (status.HasValue)
             {
                 query = query.Where(c => c.Status == status.Value);
             }
-            var lastActiveAt = await _context.Users
-                .Where(u => u.Id == userId)
-                .Select(u => u.LastActiveAt)
-                .FirstOrDefaultAsync() ?? DateTimeOffset.MinValue;
 
             var total = await query.CountAsync();
             var complaints = await query
@@ -82,44 +91,58 @@ namespace IbnElgm3a.Controllers.Students
         public async Task<IActionResult> GetComplaint(string id)
         {
             var userId = GetUserId();
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
-            if (student == null) return Unauthorized();
+
+            var studentData = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.UserId == userId)
+                .Select(s => new { s.Id, UserName = s.User != null ? s.User.Name : null })
+                .FirstOrDefaultAsync();
+
+            if (studentData == null) return Unauthorized();
 
             var complaint = await _context.Complaints
-                .FirstOrDefaultAsync(c => c.Id == id && c.StudentId == student.Id);
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == id && c.StudentId == studentData.Id);
 
             if (complaint == null) return NotFound(new { error = "not_found", message = _localizer.GetMessage("COMPLAINT_NOT_FOUND") });
 
             var messages = await _context.ComplaintMessages
-                .Include(m => m.Sender)
+                .AsNoTracking()
                 .Where(m => m.ComplaintId == complaint.Id)
                 .OrderBy(m => m.CreatedAt)
+                .Select(m => new
+                {
+                    m.Id,
+                    m.SenderRole,
+                    SenderName = m.Sender != null ? m.Sender.Name : "Admin",
+                    m.Message,
+                    m.CreatedAt
+                })
                 .ToListAsync();
 
             var thread = new List<object>();
 
-            // Add original description as first message for uniform thread UX
-            if (!string.IsNullOrEmpty(complaint.Description)) 
+            if (!string.IsNullOrEmpty(complaint.Description))
             {
                 thread.Add(new
                 {
                     id = "msg_" + complaint.Id,
                     sender_role = "student",
-                    sender_name = student.User?.Name ?? "Student",
+                    sender_name = studentData.UserName ?? "Student",
                     message = complaint.Description,
                     sent_at = complaint.CreatedAt,
-                    attachments = new List<object>() // attachments handle omitted for simplicity
+                    attachments = new List<object>()
                 });
             }
 
-            thread.AddRange(messages.Select(m => new
+            thread.AddRange(messages.Select(m => (object)new
             {
                 id = m.Id,
                 sender_role = m.SenderRole,
-                sender_name = m.Sender?.Name ?? "Admin",
+                sender_name = m.SenderName,
                 message = m.Message,
                 sent_at = m.CreatedAt,
-                attachments = new List<object>() // parsed from m.AttachmentsJson normally
+                attachments = new List<object>()
             }));
 
             var result = new
@@ -130,7 +153,7 @@ namespace IbnElgm3a.Controllers.Students
                 title = complaint.Title,
                 status = complaint.Status.ToString().ToLower(),
                 created_at = complaint.CreatedAt,
-                attachments = new List<object>(), // mock
+                attachments = new List<object>(),
                 thread = thread
             };
 
@@ -140,16 +163,20 @@ namespace IbnElgm3a.Controllers.Students
         [HttpPost]
         public async Task<IActionResult> SubmitComplaint([FromForm] SubmitComplaintDto dto)
         {
-            // Note: IFormFile attachments processing omitted for brevity
             var userId = GetUserId();
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
-            if (student == null) return Unauthorized();
+            var studentId = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.UserId == userId)
+                .Select(s => s.Id)
+                .FirstOrDefaultAsync();
+
+            if (studentId == null) return Unauthorized();
 
             var type = Enum.TryParse<ComplaintType>(dto.Category, true, out var t) ? t : ComplaintType.Other;
 
             var comp = new Complaint
             {
-                StudentId = student.Id,
+                StudentId = studentId,
                 Type = type,
                 Title = dto.Title,
                 Description = dto.Description,
@@ -173,10 +200,16 @@ namespace IbnElgm3a.Controllers.Students
         public async Task<IActionResult> ReplyComplaint(string id, [FromForm] ReplyComplaintDto dto)
         {
             var userId = GetUserId();
-            var student = await _context.Students.Include(s => s.User).FirstOrDefaultAsync(s => s.UserId == userId);
-            if (student == null) return Unauthorized();
 
-            var complaint = await _context.Complaints.FirstOrDefaultAsync(c => c.Id == id && c.StudentId == student.Id);
+            var studentData = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.UserId == userId)
+                .Select(s => new { s.Id, UserName = s.User != null ? s.User.Name : null })
+                .FirstOrDefaultAsync();
+
+            if (studentData == null) return Unauthorized();
+
+            var complaint = await _context.Complaints.FirstOrDefaultAsync(c => c.Id == id && c.StudentId == studentData.Id);
             if (complaint == null) return NotFound(new { error = "not_found", message = "Complaint not found" });
 
             if (complaint.Status == ComplaintStatus.Closed)
@@ -191,16 +224,16 @@ namespace IbnElgm3a.Controllers.Students
             };
 
             _context.ComplaintMessages.Add(msg);
-            
+
             complaint.LastResponseAt = DateTimeOffset.UtcNow;
-            
+
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
                 id = msg.Id,
                 sender_role = "student",
-                sender_name = student.User?.Name,
+                sender_name = studentData.UserName,
                 message = msg.Message,
                 sent_at = msg.CreatedAt,
                 attachments = new List<object>()

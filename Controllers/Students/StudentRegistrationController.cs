@@ -32,6 +32,7 @@ namespace IbnElgm3a.Controllers.Students
         {
             var now = DateTimeOffset.UtcNow;
             var nextSemester = await _context.Semesters
+                .AsNoTracking()
                 .Where(s => s.StartDate > now)
                 .OrderBy(s => s.StartDate)
                 .FirstOrDefaultAsync();
@@ -50,7 +51,7 @@ namespace IbnElgm3a.Controllers.Students
             var closesInHours = (isOpen && nextSemester.RegistrationEndDate.HasValue) ? (int)(nextSemester.RegistrationEndDate.Value - now).TotalHours : 0;
 
             var userId = GetUserId();
-            var student = await _context.Students.Include(s => s.User).FirstOrDefaultAsync(s => s.UserId == userId);
+            var student = await _context.Students.AsNoTracking().Include(s => s.User).FirstOrDefaultAsync(s => s.UserId == userId);
             
             bool isEligible = true;
             string? ineligibilityReason = null;
@@ -86,16 +87,20 @@ namespace IbnElgm3a.Controllers.Students
         public async Task<IActionResult> GetAvailableCourses([FromQuery] string semester_id, [FromQuery] string? type = null, [FromQuery] string? search = null, [FromQuery] bool available_only = false, [FromQuery] int page = 1, [FromQuery] int per_page = 20)
         {
             var userId = GetUserId();
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
+            var student = await _context.Students
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.UserId == userId);
             if (student == null) return Unauthorized();
 
             var completedCredits = await _context.Enrollments
+                .AsNoTracking()
                 .Include(e => e.Section).ThenInclude(s => s!.Course)
                 .Include(e => e.Grade)
                 .Where(e => e.StudentId == student.Id && e.Grade != null && e.Grade.LetterGrade != IbnElgm3a.Enums.LetterGrade.F)
                 .SumAsync(e => e.Section!.Course!.CreditHours);
 
             var query = _context.Courses
+                .AsNoTracking()
                 .Include(c => c.Sections.Where(sec => sec.SemesterId == semester_id))
                     .ThenInclude(sec => sec.ScheduleSlots)
                         .ThenInclude(ss => ss.Room)
@@ -265,12 +270,13 @@ namespace IbnElgm3a.Controllers.Students
             if (student == null) return Unauthorized();
 
             var activeSemester = semester_id != null 
-                ? await _context.Semesters.FindAsync(semester_id)
-                : await _context.Semesters.Where(s => s.StartDate > DateTimeOffset.UtcNow).OrderBy(s => s.StartDate).FirstOrDefaultAsync();
+                ? await _context.Semesters.AsNoTracking().FirstOrDefaultAsync(s => s.Id == semester_id)
+                : await _context.Semesters.AsNoTracking().Where(s => s.StartDate > DateTimeOffset.UtcNow).OrderBy(s => s.StartDate).FirstOrDefaultAsync();
 
             if (activeSemester == null) return NotFound(new { message = _localizer.GetMessage("SEMESTER_NOT_FOUND") });
 
             var request = await _context.RegistrationRequests
+                .AsNoTracking()
                 .Include(r => r.Courses)
                     .ThenInclude(rc => rc.Course)
                 .Include(r => r.Courses)

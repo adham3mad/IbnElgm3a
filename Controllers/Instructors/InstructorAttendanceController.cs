@@ -31,25 +31,26 @@ namespace IbnElgm3a.Controllers.Instructors
         public async Task<IActionResult> GetCourseAttendance(string course_id)
         {
             var userId = GetUserId();
-            var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
+            var instructor = await _context.Instructors.AsNoTracking().FirstOrDefaultAsync(i => i.UserId == userId);
             if (instructor == null) return Unauthorized();
 
-            var isTeaching = await _context.Sections.AnyAsync(s => s.CourseId == course_id && s.InstructorId == instructor.Id);
+            var isTeaching = await _context.Sections.AsNoTracking().AnyAsync(s => s.CourseId == course_id && s.InstructorId == instructor.Id);
             if (!isTeaching) return Forbid();
 
             var sessions = await _context.Sessions
+                .AsNoTracking()
                 .Where(s => s.Section!.CourseId == course_id)
                 .OrderBy(s => s.Date)
                 .ToListAsync();
 
             var sessionIds = sessions.Select(s => s.Id).ToList();
             var attendanceRecords = await _context.AttendanceRecords
+                .AsNoTracking()
                 .Where(a => sessionIds.Contains(a.SessionId))
                 .ToListAsync();
 
             var students = await _context.Enrollments
-                .Include(e => e.Student)
-                    .ThenInclude(s => s!.User)
+                .AsNoTracking()
                 .Where(e => e.Section!.CourseId == course_id && e.Status == Enums.EnrollmentStatus.Enrolled)
                 .Select(e => e.Student)
                 .ToListAsync();
@@ -108,41 +109,48 @@ namespace IbnElgm3a.Controllers.Instructors
         public async Task<IActionResult> GetSessionAttendance(string session_id)
         {
             var userId = GetUserId();
-            var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
+            var instructor = await _context.Instructors.AsNoTracking().FirstOrDefaultAsync(i => i.UserId == userId);
             if (instructor == null) return Unauthorized();
 
-            var session = await _context.Sessions.Include(s => s.Section).FirstOrDefaultAsync(s => s.Id == session_id);
+            var session = await _context.Sessions.AsNoTracking().Include(s => s.Section).FirstOrDefaultAsync(s => s.Id == session_id);
             if (session == null) return NotFound();
 
             if (session.Section?.InstructorId != instructor.Id) return Forbid();
 
             var enrollments = await _context.Enrollments
-                .Include(e => e.Student)
-                    .ThenInclude(s => s!.User)
+                .AsNoTracking()
                 .Where(e => e.SectionId == session.SectionId && e.Status == Enums.EnrollmentStatus.Enrolled)
+                .Select(e => new
+                {
+                    StudentId = e.Student!.Id,
+                    UserName = e.Student.User != null ? e.Student.User.Name : "",
+                    AcademicNumber = e.Student.AcademicNumber
+                })
                 .ToListAsync();
 
             var existingRecords = await _context.AttendanceRecords
+                .AsNoTracking()
                 .Where(a => a.SessionId == session_id)
                 .ToDictionaryAsync(a => a.StudentId, a => a.Status);
 
             var roster = enrollments.Select(e =>
             {
-                var student = e.Student!;
-                var initials = student.User!.Name.Substring(0, 1) + (student.User.Name.Contains(' ') ? student.User.Name.Split(' ')[1].Substring(0, 1) : "");
-                var status = existingRecords.ContainsKey(student.Id) ? existingRecords[student.Id] : null;
+                var initials = e.UserName.Length > 0
+                    ? e.UserName.Substring(0, 1) + (e.UserName.Contains(' ') ? e.UserName.Split(' ')[1].Substring(0, 1) : "")
+                    : "";
+                var status = existingRecords.ContainsKey(e.StudentId) ? existingRecords[e.StudentId] : null;
 
                 return new
                 {
-                    student_id = student.Id,
-                    full_name = student.User.Name,
+                    student_id = e.StudentId,
+                    full_name = e.UserName,
                     initials = initials,
-                    student_number = student.AcademicNumber,
+                    student_number = e.AcademicNumber,
                     status = status
                 };
             }).OrderBy(e => e.full_name).ToList();
 
-            var course = await _context.Courses.FindAsync(session.Section!.CourseId);
+            var course = await _context.Courses.AsNoTracking().FirstOrDefaultAsync(c => c.Id == session.Section!.CourseId);
 
             var presentCount = roster.Count(r => r.status == "present");
             var lateCount = roster.Count(r => r.status == "late");
@@ -182,7 +190,7 @@ namespace IbnElgm3a.Controllers.Instructors
         public async Task<IActionResult> UpdateAttendance(string session_id, [FromBody] AttendanceUpdateRequest request)
         {
             var userId = GetUserId();
-            var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
+            var instructor = await _context.Instructors.AsNoTracking().FirstOrDefaultAsync(i => i.UserId == userId);
             if (instructor == null) return Unauthorized();
 
             var session = await _context.Sessions.Include(s => s.Section).FirstOrDefaultAsync(s => s.Id == session_id);
@@ -250,7 +258,7 @@ namespace IbnElgm3a.Controllers.Instructors
         public async Task<IActionResult> GenerateQr(string session_id)
         {
             var userId = GetUserId();
-            var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
+            var instructor = await _context.Instructors.AsNoTracking().FirstOrDefaultAsync(i => i.UserId == userId);
             if (instructor == null) return Unauthorized();
 
             var session = await _context.Sessions.Include(s => s.Section).FirstOrDefaultAsync(s => s.Id == session_id);
@@ -287,22 +295,31 @@ namespace IbnElgm3a.Controllers.Instructors
             if (session.Section?.InstructorId != instructor.Id) return Forbid();
 
             var checkins = await _context.AttendanceRecords
-                .Include(a => a.Student)
-                    .ThenInclude(s => s!.User)
+                .AsNoTracking()
                 .Where(a => a.SessionId == session_id && a.Status == "present")
                 .OrderByDescending(a => a.CreatedAt)
+                .Select(a => new
+                {
+                    student_id = a.StudentId,
+                    FullName = a.Student != null && a.Student.User != null ? a.Student.User.Name : "",
+                    checked_in_at = a.CreatedAt
+                })
                 .ToListAsync();
 
-            var totalEnrolled = await _context.Enrollments
-                .CountAsync(e => e.SectionId == session.SectionId && e.Status == Enums.EnrollmentStatus.Enrolled);
-
+            // Build initials in memory (Substring/Split are not EF-translatable with optional args)
             var checkinsList = checkins.Select(a => new
             {
-                student_id = a.StudentId,
-                full_name = a.Student!.User!.Name,
-                initials = a.Student.User.Name.Substring(0, 1) + (a.Student.User.Name.Contains(' ') ? a.Student.User.Name.Split(' ')[1].Substring(0, 1) : ""),
-                checked_in_at = a.CreatedAt
+                student_id = a.student_id,
+                full_name = a.FullName,
+                initials = a.FullName.Length > 0
+                    ? a.FullName[0].ToString() + (a.FullName.Contains(' ') ? a.FullName.Split(' ')[1][0].ToString() : "")
+                    : "",
+                checked_in_at = a.checked_in_at
             }).ToList();
+
+            var totalEnrolled = await _context.Enrollments
+                .AsNoTracking()
+                .CountAsync(e => e.SectionId == session.SectionId && e.Status == Enums.EnrollmentStatus.Enrolled);
 
             var responseObj = new
             {

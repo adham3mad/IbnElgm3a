@@ -31,56 +31,97 @@ namespace IbnElgm3a.Controllers.Instructors
         public async Task<IActionResult> GetCourses([FromQuery] string? semester, [FromQuery] InstructorCourseStatus status = InstructorCourseStatus.Active)
         {
             var userId = GetUserId();
-            var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
-            if (instructor == null) return Unauthorized();
+
+            var instructorId = await _context.Instructors
+                .AsNoTracking()
+                .Where(i => i.UserId == userId)
+                .Select(i => i.Id)
+                .FirstOrDefaultAsync();
+
+            if (instructorId == null) return Unauthorized();
 
             var now = DateTimeOffset.UtcNow;
-            var query = _context.Sections
-                .Include(s => s.Course)
-                    .ThenInclude(c => c!.Semester)
-                .Where(s => s.InstructorId == instructor.Id);
+
+            // Fetch active semester (lightweight, no Entity tracking)
+            var activeSemester = await _context.Semesters
+                .AsNoTracking()
+                .Where(s => s.StartDate <= now && s.EndDate >= now)
+                .Select(s => new { s.Id, s.Name, s.StartDate, s.EndDate, s.TotalWeeks })
+                .FirstOrDefaultAsync()
+                ?? await _context.Semesters
+                    .AsNoTracking()
+                    .OrderByDescending(s => s.StartDate)
+                    .Select(s => new { s.Id, s.Name, s.StartDate, s.EndDate, s.TotalWeeks })
+                    .FirstOrDefaultAsync();
+
+            var currentWeek = activeSemester != null
+                ? Math.Max(1, (now - activeSemester.StartDate).Days / 7 + 1)
+                : 1;
+
+            // Build section query with proper status filter using real date comparison
+            var sectionQuery = _context.Sections
+                .AsNoTracking()
+                .Where(s => s.InstructorId == instructorId);
 
             if (!string.IsNullOrEmpty(semester))
             {
-                query = query.Where(s => s.Course!.Semester!.Name == semester);
+                sectionQuery = sectionQuery.Where(s => s.Course!.Semester!.Name == semester);
             }
-            
-            // Simplified status filter
+
             if (status == InstructorCourseStatus.Active)
             {
-                query = query.Where(s => s.Course!.Semester!.IsActive);
+                // Fix: use real date comparison instead of IsActive flag
+                sectionQuery = sectionQuery.Where(s =>
+                    s.Course!.Semester!.StartDate <= now && s.Course.Semester.EndDate >= now);
             }
 
-            var courses = await query
-                .Select(s => s.Course)
-                .Distinct()
-                .Include(c => c!.Semester)
+            // Fetch all data in a single projection query - no N+1
+            var sectionsData = await sectionQuery
+                .Select(s => new
+                {
+                    CourseId = s.CourseId,
+                    CourseCode = s.Course!.CourseCode,
+                    CourseName = s.Course.Title,
+                    SemesterName = s.Course.Semester != null ? s.Course.Semester.Name : "",
+                    SemesterTotalWeeks = s.Course.Semester != null ? s.Course.Semester.TotalWeeks : 14,
+                    StudentCount = s.Enrollments.Count(e => e.Status == EnrollmentStatus.Enrolled),
+                    PendingSubmissionsCount = _context.AssignmentSubmissions
+                        .Count(sub => sub.Assignment!.CourseId == s.CourseId && sub.Status == "submitted"),
+                    ScheduleSummary = s.ScheduleSlots
+                        .Select(ss => ss.Day.ToString().Substring(0, 3) + " " + ss.StartTime)
+                        .FirstOrDefault() ?? ""
+                })
                 .ToListAsync();
 
-            var activeSemester = await _context.Semesters
-                .Where(s => s.StartDate <= now && s.EndDate >= now)
-                .FirstOrDefaultAsync() ?? await _context.Semesters.OrderByDescending(s => s.StartDate).FirstOrDefaultAsync();
+            // De-duplicate by course (a course can have multiple sections taught by same instructor)
+            var courses = sectionsData
+                .GroupBy(s => s.CourseId)
+                .Select(g =>
+                {
+                    var first = g.First();
+                    var totalWeeks = first.SemesterTotalWeeks == 0 ? 14 : first.SemesterTotalWeeks;
+                    return new
+                    {
+                        id = first.CourseId,
+                        code = first.CourseCode,
+                        name = first.CourseName,
+                        semester = first.SemesterName,
+                        week_current = currentWeek,
+                        week_total = totalWeeks,
+                        student_count = g.Sum(s => s.StudentCount),
+                        status = "active",
+                        schedule_summary = first.ScheduleSummary,
+                        progress_percent = totalWeeks > 0 ? (int)((double)currentWeek / totalWeeks * 100) : 0,
+                        pending_submissions_count = g.First().PendingSubmissionsCount
+                    };
+                })
+                .OrderBy(c => c.code)
+                .ToList();
 
             return Ok(new
             {
                 semester = activeSemester?.Name ?? "",
-                courses = courses.Select(c => new
-                {
-                    id = c!.Id,
-                    code = c.CourseCode,
-                    name = c.Title,
-                    semester = c.Semester?.Name ?? "",
-                    week_current = activeSemester != null ? (now - activeSemester.StartDate).Days / 7 + 1 : 1,
-                    week_total = c.Semester == null || c.Semester.TotalWeeks == 0 ? 14 : c.Semester.TotalWeeks,
-                    student_count = _context.Enrollments.Count(e => e.Section!.CourseId == c.Id && e.Status == Enums.EnrollmentStatus.Enrolled),
-                    status = "active",
-                    schedule_summary = _context.ScheduleSlots
-                        .Where(ss => ss.Section!.CourseId == c.Id)
-                        .Select(ss => ss.Day.ToString().Substring(0, 3) + " " + ss.StartTime)
-                        .FirstOrDefault() ?? "",
-                    progress_percent = activeSemester != null && activeSemester.TotalWeeks > 0 ? (int)((double)((now - activeSemester.StartDate).Days / 7 + 1) / activeSemester.TotalWeeks * 100) : 0,
-                    pending_submissions_count = _context.AssignmentSubmissions.Count(s => s.Assignment!.CourseId == c.Id && s.Status == "submitted")
-                }).OrderBy(c => c.code).ToList()
+                courses = courses
             });
         }
 
@@ -88,51 +129,87 @@ namespace IbnElgm3a.Controllers.Instructors
         public async Task<IActionResult> GetCourseDetail(string course_id)
         {
             var userId = GetUserId();
-            var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
-            if (instructor == null) return Unauthorized();
+
+            var instructorId = await _context.Instructors
+                .AsNoTracking()
+                .Where(i => i.UserId == userId)
+                .Select(i => i.Id)
+                .FirstOrDefaultAsync();
+
+            if (instructorId == null) return Unauthorized();
 
             var course = await _context.Courses
+                .AsNoTracking()
                 .Include(c => c.Semester)
                 .FirstOrDefaultAsync(c => c.Id == course_id);
 
             if (course == null) return NotFound();
 
             // Verify instructor teaches this course
-            var isTeaching = await _context.Sections.AnyAsync(s => s.CourseId == course_id && s.InstructorId == instructor.Id);
+            var isTeaching = await _context.Sections
+                .AsNoTracking()
+                .AnyAsync(s => s.CourseId == course_id && s.InstructorId == instructorId);
+
             if (!isTeaching) return Forbid();
 
             var now = DateTimeOffset.UtcNow;
             var currentWeek = (now - course.Semester!.StartDate).Days / 7 + 1;
-            var studentCount = await _context.Enrollments.CountAsync(e => e.Section!.CourseId == course_id && e.Status == Enums.EnrollmentStatus.Enrolled);
 
-            var schedule = await _context.ScheduleSlots
-                .Include(ss => ss.Room)
-                .Where(ss => ss.Section!.CourseId == course_id && ss.Section.InstructorId == instructor.Id)
+            // Parallel lightweight queries
+            var studentCountTask = _context.Enrollments
+                .AsNoTracking()
+                .CountAsync(e => e.Section!.CourseId == course_id && e.Status == EnrollmentStatus.Enrolled);
+
+            var scheduleTask = _context.ScheduleSlots
+                .AsNoTracking()
+                .Where(ss => ss.Section!.CourseId == course_id && ss.Section.InstructorId == instructorId)
                 .Select(ss => new
                 {
                     day_of_week = ss.Day.ToString().ToLower(),
                     start_time = ss.StartTime,
                     end_time = ss.EndTime,
-                    room = ss.Room!.Name,
+                    room = ss.Room != null ? ss.Room.Name : "",
                     type = ss.Type.ToString().ToLower()
                 })
                 .ToListAsync();
 
-            var gradesList = await _context.Grades
+            var gradesTask = _context.Grades
+                .AsNoTracking()
                 .Where(g => g.Enrollment!.Section!.CourseId == course_id)
-                .Select(g => g.Marks)
-                .ToListAsync();
-            var classAverage = gradesList.Any() ? gradesList.Average(m => (double)m) : 0.0;
-
-            var enrolledStudentIds = await _context.Enrollments
-                .Where(e => e.Section!.CourseId == course_id && e.Status == Enums.EnrollmentStatus.Enrolled)
-                .Select(e => e.StudentId)
+                .Select(g => (double)g.Marks)
                 .ToListAsync();
 
-            var attendanceRecords = await _context.AttendanceRecords
+            var attendanceTask = _context.AttendanceRecords
+                .AsNoTracking()
                 .Where(a => a.Session!.Section!.CourseId == course_id && a.Session.AttendanceStatus == "completed")
                 .Select(a => new { a.SessionId, a.StudentId, a.Status })
                 .ToListAsync();
+
+            var pendingSubsTask = _context.AssignmentSubmissions
+                .AsNoTracking()
+                .CountAsync(s => s.Assignment!.CourseId == course_id && s.Status == "submitted");
+
+            var completedSessionsTask = _context.Sessions
+                .AsNoTracking()
+                .CountAsync(s => s.Section!.CourseId == course_id && s.AttendanceStatus == "completed");
+
+            var enrolledStudentIdsTask = _context.Enrollments
+                .AsNoTracking()
+                .Where(e => e.Section!.CourseId == course_id && e.Status == EnrollmentStatus.Enrolled)
+                .Select(e => e.StudentId)
+                .ToListAsync();
+
+            await Task.WhenAll(studentCountTask, scheduleTask, gradesTask, attendanceTask, pendingSubsTask, completedSessionsTask, enrolledStudentIdsTask);
+
+            var studentCount = studentCountTask.Result;
+            var schedule = scheduleTask.Result;
+            var gradesList = gradesTask.Result;
+            var attendanceRecords = attendanceTask.Result;
+            var pendingSubmissions = pendingSubsTask.Result;
+            var completedSessionsCount = completedSessionsTask.Result;
+            var enrolledStudentIds = enrolledStudentIdsTask.Result;
+
+            var classAverage = gradesList.Any() ? gradesList.Average() : 0.0;
 
             var sessionsGrouped = attendanceRecords.GroupBy(a => a.SessionId).ToList();
             var averageAttendanceRate = sessionsGrouped.Any()
@@ -140,9 +217,6 @@ namespace IbnElgm3a.Controllers.Instructors
                 : 0.0;
 
             var studentGroups = attendanceRecords.GroupBy(a => a.StudentId).ToDictionary(g => g.Key, g => g.ToList());
-            
-            var completedSessionsCount = await _context.Sessions
-                .CountAsync(s => s.Section!.CourseId == course_id && s.AttendanceStatus == "completed");
 
             int atRiskCount = 0;
             if (completedSessionsCount > 0)
@@ -152,10 +226,7 @@ namespace IbnElgm3a.Controllers.Instructors
                     if (studentGroups.TryGetValue(studentId, out var records) && records.Any())
                     {
                         double rate = (double)records.Count(r => r.Status == "present" || r.Status == "late") / records.Count;
-                        if (rate < 0.6)
-                        {
-                            atRiskCount++;
-                        }
+                        if (rate < 0.6) atRiskCount++;
                     }
                     else
                     {
@@ -164,6 +235,8 @@ namespace IbnElgm3a.Controllers.Instructors
                 }
             }
 
+            var totalWeeks = course.Semester.TotalWeeks == 0 ? 14 : course.Semester.TotalWeeks;
+
             return Ok(new
             {
                 id = course.Id,
@@ -171,17 +244,17 @@ namespace IbnElgm3a.Controllers.Instructors
                 name = course.Title,
                 semester = course.Semester.Name,
                 week_current = currentWeek,
-                week_total = course.Semester.TotalWeeks == 0 ? 14 : course.Semester.TotalWeeks,
+                week_total = totalWeeks,
                 student_count = studentCount,
                 status = "active",
                 schedule_summary = schedule.FirstOrDefault()?.day_of_week + " " + schedule.FirstOrDefault()?.start_time,
-                progress_percent = course.Semester.TotalWeeks > 0 ? (int)((double)currentWeek / course.Semester.TotalWeeks * 100) : 0,
-                pending_submissions_count = await _context.AssignmentSubmissions.CountAsync(s => s.Assignment!.CourseId == course_id && s.Status == "submitted"),
+                progress_percent = totalWeeks > 0 ? (int)((double)currentWeek / totalWeeks * 100) : 0,
+                pending_submissions_count = pendingSubmissions,
                 overview = new
                 {
                     class_average = classAverage,
                     average_attendance_rate = averageAttendanceRate,
-                    to_grade_count = await _context.AssignmentSubmissions.CountAsync(s => s.Assignment!.CourseId == course_id && s.Status == "submitted"),
+                    to_grade_count = pendingSubmissions,
                     at_risk_count = atRiskCount
                 },
                 recurring_schedule = schedule
@@ -191,13 +264,33 @@ namespace IbnElgm3a.Controllers.Instructors
         [HttpGet("{course_id}/materials")]
         public async Task<IActionResult> GetMaterials(string course_id, [FromQuery] int? week_number)
         {
-            var query = _context.CourseMaterials.Where(m => m.CourseId == course_id);
+            var query = _context.CourseMaterials
+                .AsNoTracking()
+                .Where(m => m.CourseId == course_id);
+
             if (week_number.HasValue)
             {
                 query = query.Where(m => m.WeekNumber == week_number.Value);
             }
 
-            var materials = await query.OrderByDescending(m => m.WeekNumber).ThenBy(m => m.CreatedAt).ToListAsync();
+            var materials = await query
+                .OrderByDescending(m => m.WeekNumber)
+                .ThenBy(m => m.CreatedAt)
+                .Select(m => new
+                {
+                    WeekNumber = m.WeekNumber,
+                    id = m.Id,
+                    title = m.Title,
+                    type = m.Type,
+                    file_url = m.FileUrl,
+                    external_url = m.ExternalUrl,
+                    file_size_bytes = m.FileSizeBytes,
+                    duration_seconds = m.DurationSeconds,
+                    status = m.Status,
+                    view_count = m.ViewCount,
+                    created_at = m.CreatedAt
+                })
+                .ToListAsync();
 
             var grouped = materials.GroupBy(m => m.WeekNumber)
                 .Select(g => new
@@ -206,16 +299,16 @@ namespace IbnElgm3a.Controllers.Instructors
                     week_label = $"Week {g.Key}",
                     materials = g.Select(m => new
                     {
-                        id = m.Id,
-                        title = m.Title,
-                        type = m.Type,
-                        file_url = m.FileUrl,
-                        external_url = m.ExternalUrl,
-                        file_size_bytes = m.FileSizeBytes,
-                        duration_seconds = m.DurationSeconds,
-                        status = m.Status,
-                        view_count = m.ViewCount,
-                        created_at = m.CreatedAt
+                        m.id,
+                        m.title,
+                        m.type,
+                        m.file_url,
+                        m.external_url,
+                        m.file_size_bytes,
+                        m.duration_seconds,
+                        m.status,
+                        m.view_count,
+                        m.created_at
                     }).ToList()
                 }).ToList();
 
@@ -225,38 +318,53 @@ namespace IbnElgm3a.Controllers.Instructors
         [HttpGet("{course_id}/roster")]
         public async Task<IActionResult> GetRoster(string course_id, [FromQuery] RosterRiskStatus? risk_status, [FromQuery] int page = 1, [FromQuery] int limit = 50)
         {
-            var enrollments = await _context.Enrollments
-                .Include(e => e.Student)
-                    .ThenInclude(s => s!.User)
-                .Where(e => e.Section!.CourseId == course_id && e.Status == Enums.EnrollmentStatus.Enrolled)
+            // Fetch all needed data in two parallel queries
+            var enrollmentsTask = _context.Enrollments
+                .AsNoTracking()
+                .Where(e => e.Section!.CourseId == course_id && e.Status == EnrollmentStatus.Enrolled)
+                .Select(e => new
+                {
+                    StudentId = e.Student!.Id,
+                    AcademicNumber = e.Student.AcademicNumber,
+                    UserName = e.Student.User != null ? e.Student.User.Name : ""
+                })
                 .ToListAsync();
 
-            var completedSessionsCount = await _context.Sessions
+            var completedSessionsCountTask = _context.Sessions
+                .AsNoTracking()
                 .CountAsync(s => s.Section!.CourseId == course_id && s.AttendanceStatus == "completed");
 
-            var attendanceRecords = await _context.AttendanceRecords
+            var attendanceRecordsTask = _context.AttendanceRecords
+                .AsNoTracking()
                 .Where(a => a.Session!.Section!.CourseId == course_id && a.Session.AttendanceStatus == "completed")
+                .Select(a => new { a.StudentId, a.Status })
                 .ToListAsync();
+
+            await Task.WhenAll(enrollmentsTask, completedSessionsCountTask, attendanceRecordsTask);
+
+            var enrollments = enrollmentsTask.Result;
+            var completedSessionsCount = completedSessionsCountTask.Result;
+            var attendanceRecords = attendanceRecordsTask.Result;
 
             var students = enrollments.Select(e =>
             {
-                var student = e.Student!;
-                var studentRecords = attendanceRecords.Where(a => a.StudentId == student.Id).ToList();
+                var studentRecords = attendanceRecords.Where(a => a.StudentId == e.StudentId).ToList();
                 var presentCount = studentRecords.Count(a => a.Status == "present" || a.Status == "late");
-                
-                var attendanceRate = completedSessionsCount > 0 ? (float)presentCount / completedSessionsCount : 1.0f; 
-                var status = attendanceRate >= 0.75f ? "good" : (attendanceRate >= 0.60f ? "watch" : "at_risk");
 
+                var attendanceRate = completedSessionsCount > 0 ? (float)presentCount / completedSessionsCount : 1.0f;
+                var riskStatus = attendanceRate >= 0.75f ? "good" : (attendanceRate >= 0.60f ? "watch" : "at_risk");
+
+                var nameParts = e.UserName.Split(' ');
                 return new
                 {
-                    id = student.Id,
-                    student_number = student.AcademicNumber,
-                    first_name = student.User!.Name.Split(' ')[0],
-                    last_name = student.User.Name.Contains(' ') ? student.User.Name.Split(' ')[1] : "",
-                    full_name = student.User.Name,
-                    initials = student.User.Name.Substring(0, 1) + (student.User.Name.Contains(' ') ? student.User.Name.Split(' ')[1].Substring(0, 1) : ""),
+                    id = e.StudentId,
+                    student_number = e.AcademicNumber,
+                    first_name = nameParts[0],
+                    last_name = nameParts.Length > 1 ? nameParts[1] : "",
+                    full_name = e.UserName,
+                    initials = e.UserName.Length > 0 ? e.UserName.Substring(0, 1) + (nameParts.Length > 1 && nameParts[1].Length > 0 ? nameParts[1].Substring(0, 1) : "") : "",
                     attendance_rate = attendanceRate,
-                    risk_status = status
+                    risk_status = riskStatus
                 };
             }).ToList();
 

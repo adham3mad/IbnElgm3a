@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace IbnElgm3a.Controllers.Instructors
 {
@@ -17,19 +18,28 @@ namespace IbnElgm3a.Controllers.Instructors
     {
         private readonly AppDbContext _context;
         private readonly ILocalizationService _localizer;
+        private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache _cache;
 
-        public InstructorDashboardController(AppDbContext context, ILocalizationService localizer)
+        public InstructorDashboardController(AppDbContext context, ILocalizationService localizer, Microsoft.Extensions.Caching.Memory.IMemoryCache cache)
         {
             _context = context;
             _localizer = localizer;
+            _cache = cache;
         }
 
         private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
 
         [HttpGet]
+        [ResponseCache(Duration = 60, Location = ResponseCacheLocation.Client)]
         public async Task<IActionResult> GetDashboard()
         {
             var userId = GetUserId();
+            var cacheKey = $"instructor_dashboard_{userId}";
+
+            if (_cache.TryGetValue(cacheKey, out object? cachedResponse) && cachedResponse != null)
+            {
+                return Ok(cachedResponse);
+            }
 
             // 1. Fetch instructor details (Fast, single query on same context)
             var instructor = await _context.Instructors
@@ -226,6 +236,9 @@ namespace IbnElgm3a.Controllers.Instructors
                     };
                 }).ToList()
             };
+
+            // Cache for 15 seconds
+            _cache.Set(cacheKey, response, TimeSpan.FromSeconds(15));
 
             return Ok(response);
         }

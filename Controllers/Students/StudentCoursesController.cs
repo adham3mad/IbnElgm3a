@@ -29,56 +29,79 @@ namespace IbnElgm3a.Controllers.Students
         public async Task<IActionResult> GetCourses([FromQuery] string? semester_id = null, [FromQuery] string? search = null)
         {
             var userId = GetUserId();
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
-            if (student == null) return Unauthorized();
 
-            var activeSemester = semester_id != null 
-                ? await _context.Semesters.FindAsync(semester_id)
-                : await _context.Semesters.OrderByDescending(s => s.StartDate).FirstOrDefaultAsync();
+            // Single query: fetch student + active semester + enrollments together
+            var studentData = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.UserId == userId)
+                .Select(s => new { s.Id, s.DepartmentId })
+                .FirstOrDefaultAsync();
+
+            if (studentData == null) return Unauthorized();
+
+            var activeSemester = semester_id != null
+                ? await _context.Semesters.AsNoTracking().Where(s => s.Id == semester_id).Select(s => new { s.Id }).FirstOrDefaultAsync()
+                : await _context.Semesters.AsNoTracking().OrderByDescending(s => s.StartDate).Select(s => new { s.Id }).FirstOrDefaultAsync();
 
             if (activeSemester == null) return Ok(new { semester_id = "", total_credits = 0, courses = new List<object>() });
 
             var query = _context.Enrollments
-                .Include(e => e.Section)
-                    .ThenInclude(s => s!.Course)
-                .Include(e => e.Section)
-                    .ThenInclude(s => s!.Instructor)
-                        .ThenInclude(i => i!.User)
-                .Include(e => e.Grade)
-                .Where(e => e.StudentId == student.Id && e.Section != null && e.Section.Course != null && e.Section.Course.SemesterId == activeSemester.Id && e.Status == EnrollmentStatus.Enrolled)
-                .AsQueryable();
+                .AsNoTracking()
+                .Where(e => e.StudentId == studentData.Id
+                    && e.Section != null
+                    && e.Section.Course != null
+                    && e.Section.Course.SemesterId == activeSemester.Id
+                    && e.Status == EnrollmentStatus.Enrolled);
 
+            // Fix: case-insensitive search filter using EF Core string methods
             if (!string.IsNullOrEmpty(search))
             {
                 var lowerSearch = search.ToLower();
-                query = query.Where(e => e.Section!.Course!.Title.ToLower().Contains(lowerSearch) || e.Section!.Course!.CourseCode.ToLower().Contains(lowerSearch));
+                query = query.Where(e =>
+                    e.Section!.Course!.Title.ToLower().Contains(lowerSearch) ||
+                    e.Section!.Course!.CourseCode.ToLower().Contains(lowerSearch));
             }
 
-            var enrollments = await query.ToListAsync();
+            var enrollments = await query
+                .Select(e => new
+                {
+                    CourseId = e.Section!.CourseId,
+                    CourseCode = e.Section.Course!.CourseCode,
+                    CourseTitle = e.Section.Course.Title,
+                    CreditHours = e.Section.Course.CreditHours,
+                    ClassType = e.Section.ClassType,
+                    SectionName = e.Section.Name,
+                    InstructorName = e.Section.Instructor != null && e.Section.Instructor.User != null ? e.Section.Instructor.User.Name : null,
+                    InstructorEmail = e.Section.Instructor != null && e.Section.Instructor.User != null ? e.Section.Instructor.User.Email : null,
+                    LetterGrade = e.Grade != null ? (LetterGrade?)e.Grade.LetterGrade : null,
+                    Marks = e.Grade != null ? (decimal?)e.Grade.Marks : null,
+                })
+                .ToListAsync();
 
             var result = new
             {
                 semester_id = activeSemester.Id,
-                total_credits = enrollments.Sum(e => e.Section?.Course?.CreditHours ?? 0),
+                total_credits = enrollments.Sum(e => e.CreditHours),
                 courses = enrollments.Select(e => new
                 {
-                    id = e.Section?.CourseId ?? "",
-                    code = e.Section?.Course?.CourseCode ?? "",
-                    name = e.Section?.Course?.Title ?? "",
-                    credit_hours = e.Section?.Course?.CreditHours ?? 0,
-                    type = e.Section?.ClassType.ToString().ToLower() ?? "lecture",
-                    section = e.Section?.Name ?? "",
-                    instructor = e.Section?.Instructor?.User != null ? new {
-                        name = e.Section.Instructor.User.Name,
-                        email = e.Section.Instructor.User.Email,
-                        office = "TBD" 
-                    } : null,
-                    attendance_pct = 0, 
+                    id = e.CourseId ?? "",
+                    code = e.CourseCode ?? "",
+                    name = e.CourseTitle ?? "",
+                    credit_hours = e.CreditHours,
+                    type = e.ClassType.ToString().ToLower(),
+                    section = e.SectionName ?? "",
+                    instructor = e.InstructorName != null ? new
+                    {
+                        name = e.InstructorName,
+                        email = e.InstructorEmail,
+                        office = "TBD"
+                    } : (object?)null,
+                    attendance_pct = 0,
                     attendance_warning = false,
                     sessions_attended = 0,
                     sessions_total = 0,
-                    current_grade = e.Grade?.LetterGrade.ToString() ?? "N/A",
-                    current_grade_pct = e.Grade != null ? e.Grade.Marks : 0
+                    current_grade = e.LetterGrade.HasValue ? e.LetterGrade.Value.ToString() : "N/A",
+                    current_grade_pct = e.Marks ?? 0
                 }).ToList()
             };
 
@@ -89,55 +112,72 @@ namespace IbnElgm3a.Controllers.Students
         public async Task<IActionResult> GetCourseById(string id)
         {
             var userId = GetUserId();
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
-            if (student == null) return Unauthorized();
+
+            var studentId = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.UserId == userId)
+                .Select(s => s.Id)
+                .FirstOrDefaultAsync();
+
+            if (studentId == null) return Unauthorized();
 
             var enrollment = await _context.Enrollments
-                .Include(e => e.Section)
-                    .ThenInclude(s => s!.Course)
-                .Include(e => e.Section)
-                    .ThenInclude(s => s!.Instructor)
-                        .ThenInclude(i => i!.User)
-                .Include(e => e.Section)
-                    .ThenInclude(s => s!.ScheduleSlots)
-                        .ThenInclude(ss => ss.Room)
-                .Include(e => e.Grade)
-                .FirstOrDefaultAsync(e => e.StudentId == student.Id && e.Section != null && e.Section.CourseId == id && e.Status == EnrollmentStatus.Enrolled);
+                .AsNoTracking()
+                .Where(e => e.StudentId == studentId
+                    && e.Section != null
+                    && e.Section.CourseId == id
+                    && e.Status == EnrollmentStatus.Enrolled)
+                .Select(e => new
+                {
+                    CourseId = e.Section!.CourseId,
+                    CourseCode = e.Section.Course!.CourseCode,
+                    CourseTitle = e.Section.Course.Title,
+                    CreditHours = e.Section.Course.CreditHours,
+                    ClassType = e.Section.ClassType,
+                    SectionName = e.Section.Name,
+                    InstructorName = e.Section.Instructor != null && e.Section.Instructor.User != null ? e.Section.Instructor.User.Name : null,
+                    InstructorEmail = e.Section.Instructor != null && e.Section.Instructor.User != null ? e.Section.Instructor.User.Email : null,
+                    LetterGrade = e.Grade != null ? (LetterGrade?)e.Grade.LetterGrade : null,
+                    Marks = e.Grade != null ? (decimal?)e.Grade.Marks : null,
+                    ScheduleSlots = e.Section.ScheduleSlots.Select(ss => new
+                    {
+                        day = ss.Day.ToString(),
+                        start_time = ss.StartTime,
+                        end_time = ss.EndTime,
+                        RoomName = ss.Room != null ? ss.Room.Name : ss.RoomId
+                    }).ToList()
+                })
+                .FirstOrDefaultAsync();
 
             if (enrollment == null) return NotFound(new { error = "not_found", message = _localizer.GetMessage("COURSE_NOT_FOUND") });
 
             var result = new
             {
-                id = enrollment.Section?.CourseId,
-                code = enrollment.Section?.Course?.CourseCode,
-                name = enrollment.Section?.Course?.Title,
-                credit_hours = enrollment.Section?.Course?.CreditHours,
-                type = enrollment.Section?.ClassType.ToString().ToLower() ?? "lecture",
-                section = enrollment.Section?.Name,
-                instructor = enrollment.Section?.Instructor?.User != null ? new {
-                    name = enrollment.Section.Instructor.User.Name,
-                    email = enrollment.Section.Instructor.User.Email,
+                id = enrollment.CourseId,
+                code = enrollment.CourseCode,
+                name = enrollment.CourseTitle,
+                credit_hours = enrollment.CreditHours,
+                type = enrollment.ClassType.ToString().ToLower(),
+                section = enrollment.SectionName,
+                instructor = enrollment.InstructorName != null ? new
+                {
+                    name = enrollment.InstructorName,
+                    email = enrollment.InstructorEmail,
                     office = "TBD"
-                } : null,
+                } : (object?)null,
                 grade_breakdown = new List<object>
                 {
-                    new { component = "Total", weight = 100, score = enrollment.Grade?.Marks, max = 100, pct = enrollment.Grade?.Marks, upcoming = false }
+                    new { component = "Total", weight = 100, score = enrollment.Marks, max = 100, pct = enrollment.Marks, upcoming = false }
                 },
                 current_total = new
                 {
-                    score = enrollment.Grade?.Marks,
+                    score = enrollment.Marks,
                     max = 100,
-                    grade = enrollment.Grade?.LetterGrade.ToString(),
-                    pct = enrollment.Grade?.Marks
+                    grade = enrollment.LetterGrade.HasValue ? enrollment.LetterGrade.Value.ToString() : null,
+                    pct = enrollment.Marks
                 },
-                attendance_log = new List<object>(), 
-                schedule_slots = enrollment.Section?.ScheduleSlots.Select(s => new
-                {
-                    day = s.Day.ToString(),
-                    start_time = s.StartTime,
-                    end_time = s.EndTime,
-                    room = s.Room?.Name ?? s.RoomId
-                }).ToList()
+                attendance_log = new List<object>(),
+                schedule_slots = enrollment.ScheduleSlots
             };
 
             return Ok(result);

@@ -55,8 +55,9 @@ namespace IbnElgm3a.Controllers.Common
 
                 if (type.HasValue)
                 {
+                    // Compute the filter value as a constant string - PostgreSQL can translate this correctly
                     var typeStr = type.Value.ToString().ToLower();
-                    query = query.Where(n => n.Type.ToLower() == typeStr.ToLower());
+                    query = query.Where(n => n.Type == typeStr);
                 }
                 if (unread_only)
                 {
@@ -94,8 +95,9 @@ namespace IbnElgm3a.Controllers.Common
 
                 if (type.HasValue)
                 {
+                    // Compute the filter value as a constant string - PostgreSQL can translate this correctly
                     var typeStr = type.Value.ToString().ToLower();
-                    query = query.Where(n => n.Type.ToLower() == typeStr.ToLower());
+                    query = query.Where(n => n.Type == typeStr);
                 }
                 if (unread_only)
                 {
@@ -107,6 +109,16 @@ namespace IbnElgm3a.Controllers.Common
                     .OrderByDescending(n => n.CreatedAt)
                     .Skip((page - 1) * actualPerPage)
                     .Take(actualPerPage)
+                    .Select(n => new
+                    {
+                        id = n.Id,
+                        type = n.Type,
+                        title = n.Title,
+                        body = n.Body,
+                        is_read = n.IsRead,
+                        created_at = n.CreatedAt,
+                        action_url = n.ActionUrl
+                    })
                     .ToListAsync();
 
                 return Ok(new

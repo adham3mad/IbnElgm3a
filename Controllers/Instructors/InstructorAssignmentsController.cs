@@ -34,21 +34,23 @@ namespace IbnElgm3a.Controllers.Instructors
         public async Task<IActionResult> GetAssignments(string course_id, [FromQuery] AssignmentStatus? status)
         {
             var userId = GetUserId();
-            var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
+            var instructor = await _context.Instructors.AsNoTracking().FirstOrDefaultAsync(i => i.UserId == userId);
             if (instructor == null) return Unauthorized();
 
-            var isTeaching = await _context.Sections.AnyAsync(s => s.CourseId == course_id && s.InstructorId == instructor.Id);
+            var isTeaching = await _context.Sections.AsNoTracking().AnyAsync(s => s.CourseId == course_id && s.InstructorId == instructor.Id);
             if (!isTeaching) return Forbid();
 
             var enrolledCount = await _context.Enrollments
+                .AsNoTracking()
                 .CountAsync(e => e.Section!.CourseId == course_id && e.Status == Enums.EnrollmentStatus.Enrolled);
 
-            var query = _context.Assignments.Where(a => a.CourseId == course_id);
+            var query = _context.Assignments.AsNoTracking().Where(a => a.CourseId == course_id);
 
             if (status.HasValue)
             {
+                // Fix: pre-compute the string constant so PostgreSQL can translate the comparison
                 var statusStr = status.Value.ToString().ToLower();
-                query = query.Where(a => a.Status.ToLower() == statusStr.ToLower());
+                query = query.Where(a => a.Status == statusStr);
             }
 
             var rawAssignments = await query
@@ -106,10 +108,10 @@ namespace IbnElgm3a.Controllers.Instructors
         public async Task<IActionResult> CreateAssignment(string course_id, [FromBody] AssignmentRequest request)
         {
             var userId = GetUserId();
-            var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
+            var instructor = await _context.Instructors.AsNoTracking().FirstOrDefaultAsync(i => i.UserId == userId);
             if (instructor == null) return Unauthorized();
 
-            var isTeaching = await _context.Sections.AnyAsync(s => s.CourseId == course_id && s.InstructorId == instructor.Id);
+            var isTeaching = await _context.Sections.AsNoTracking().AnyAsync(s => s.CourseId == course_id && s.InstructorId == instructor.Id);
             if (!isTeaching) return Forbid();
 
             var assignment = new Assignment
@@ -155,13 +157,13 @@ namespace IbnElgm3a.Controllers.Instructors
         public async Task<IActionResult> UpdateAssignment(string assignment_id, [FromBody] AssignmentRequest request)
         {
             var userId = GetUserId();
-            var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
+            var instructor = await _context.Instructors.AsNoTracking().FirstOrDefaultAsync(i => i.UserId == userId);
             if (instructor == null) return Unauthorized();
 
             var assignment = await _context.Assignments.Include(a => a.Course).FirstOrDefaultAsync(a => a.Id == assignment_id);
             if (assignment == null) return NotFound();
 
-            var isTeaching = await _context.Sections.AnyAsync(s => s.CourseId == assignment.CourseId && s.InstructorId == instructor.Id);
+            var isTeaching = await _context.Sections.AsNoTracking().AnyAsync(s => s.CourseId == assignment.CourseId && s.InstructorId == instructor.Id);
             if (!isTeaching) return Forbid();
 
             if (!string.IsNullOrEmpty(request.Title)) assignment.Title = request.Title;
@@ -206,29 +208,33 @@ namespace IbnElgm3a.Controllers.Instructors
         public async Task<IActionResult> GetSubmissions(string assignment_id, [FromQuery] SubmissionStatus? status, [FromQuery] int page = 1, [FromQuery] int limit = 30)
         {
             var userId = GetUserId();
-            var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
+            var instructor = await _context.Instructors.AsNoTracking().FirstOrDefaultAsync(i => i.UserId == userId);
             if (instructor == null) return Unauthorized();
 
-            var assignment = await _context.Assignments.FindAsync(assignment_id);
+            var assignment = await _context.Assignments.AsNoTracking().FirstOrDefaultAsync(a => a.Id == assignment_id);
             if (assignment == null) return NotFound();
 
-            var isTeaching = await _context.Sections.AnyAsync(s => s.CourseId == assignment.CourseId && s.InstructorId == instructor.Id);
+            var isTeaching = await _context.Sections.AsNoTracking().AnyAsync(s => s.CourseId == assignment.CourseId && s.InstructorId == instructor.Id);
             if (!isTeaching) return Forbid();
 
             var enrollments = await _context.Enrollments
-                .Include(e => e.Student)
-                    .ThenInclude(st => st!.User)
+                .AsNoTracking()
                 .Where(e => e.Section!.CourseId == assignment.CourseId && e.Status == Enums.EnrollmentStatus.Enrolled)
+                .Select(e => new
+                {
+                    StudentId = e.Student!.Id,
+                    UserName = e.Student.User != null ? e.Student.User.Name : ""
+                })
                 .ToListAsync();
 
             var dbSubmissions = await _context.AssignmentSubmissions
+                .AsNoTracking()
                 .Where(s => s.AssignmentId == assignment_id)
                 .ToListAsync();
 
             var submissionsList = enrollments.Select(e =>
             {
-                var student = e.Student!;
-                var sub = dbSubmissions.FirstOrDefault(s => s.StudentId == student.Id);
+                var sub = dbSubmissions.FirstOrDefault(s => s.StudentId == e.StudentId);
                 
                 string subStatus = "missing";
                 bool isLate = false;
@@ -254,9 +260,11 @@ namespace IbnElgm3a.Controllers.Instructors
                     id = sub?.Id,
                     student = new
                     {
-                        id = student.Id,
-                        full_name = student.User!.Name,
-                        initials = student.User.Name.Substring(0, 1) + (student.User.Name.Contains(' ') ? student.User.Name.Split(' ')[1].Substring(0, 1) : "")
+                        id = e.StudentId,
+                        full_name = e.UserName,
+                        initials = e.UserName.Length > 0
+                            ? e.UserName.Substring(0, 1) + (e.UserName.Contains(' ') ? e.UserName.Split(' ')[1].Substring(0, 1) : "")
+                            : ""
                     },
                     submitted_at = submittedAt,
                     is_late = isLate,

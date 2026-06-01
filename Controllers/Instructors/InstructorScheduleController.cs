@@ -11,7 +11,7 @@ using IbnElgm3a.DTOs.Schedules;
 namespace IbnElgm3a.Controllers.Instructors
 {
     [ApiController]
-    [Route("instructor/Schedule")]
+    [Route("instructor/schedule")]
     [Authorize(Roles = "instructor")]
     public class InstructorScheduleController : ControllerBase
     {
@@ -30,7 +30,7 @@ namespace IbnElgm3a.Controllers.Instructors
         public async Task<IActionResult> GetWeeklySchedule([FromQuery] string? week_start)
         {
             var userId = GetUserId();
-            var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
+            var instructor = await _context.Instructors.AsNoTracking().FirstOrDefaultAsync(i => i.UserId == userId);
             if (instructor == null) return Unauthorized();
 
             DateTime start;
@@ -47,10 +47,12 @@ namespace IbnElgm3a.Controllers.Instructors
 
             var end = start.AddDays(7);
             var activeSemester = await _context.Semesters
+                .AsNoTracking()
                 .Where(s => s.StartDate <= start && s.EndDate >= start)
-                .FirstOrDefaultAsync() ?? await _context.Semesters.OrderByDescending(s => s.StartDate).FirstOrDefaultAsync();
+                .FirstOrDefaultAsync() ?? await _context.Semesters.AsNoTracking().OrderByDescending(s => s.StartDate).FirstOrDefaultAsync();
 
             var sessions = await _context.Sessions
+                .AsNoTracking()
                 .Include(s => s.Section)
                     .ThenInclude(sec => sec!.Course)
                 .Where(s => s.Section!.InstructorId == instructor.Id && s.Date >= start && s.Date < end)
@@ -104,10 +106,11 @@ namespace IbnElgm3a.Controllers.Instructors
         public async Task<IActionResult> GetSessionDetail(string session_id)
         {
             var userId = GetUserId();
-            var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
+            var instructor = await _context.Instructors.AsNoTracking().FirstOrDefaultAsync(i => i.UserId == userId);
             if (instructor == null) return Unauthorized();
 
             var session = await _context.Sessions
+                .AsNoTracking()
                 .Include(s => s.Section)
                     .ThenInclude(sec => sec!.Course)
                 .FirstOrDefaultAsync(s => s.Id == session_id);
@@ -116,8 +119,8 @@ namespace IbnElgm3a.Controllers.Instructors
 
             if (session.Section?.InstructorId != instructor.Id) return Forbid();
 
-            var presentCount = await _context.AttendanceRecords.CountAsync(a => a.SessionId == session_id && a.Status == "present");
-            var studentCount = await _context.Enrollments.CountAsync(e => e.SectionId == session.SectionId && e.Status == Enums.EnrollmentStatus.Enrolled);
+            var presentCount = await _context.AttendanceRecords.AsNoTracking().CountAsync(a => a.SessionId == session_id && a.Status == "present");
+            var studentCount = await _context.Enrollments.AsNoTracking().CountAsync(e => e.SectionId == session.SectionId && e.Status == Enums.EnrollmentStatus.Enrolled);
 
             return Ok(new
             {
@@ -155,6 +158,7 @@ namespace IbnElgm3a.Controllers.Instructors
         {
             var sessionDate = DateTime.Parse(date).Date;
             var conflict = await _context.Sessions
+                .AsNoTracking()
                 .AnyAsync(s => s.Date.Date == sessionDate && s.RoomName == room &&
                                ((s.StartTime.CompareTo(start_time) >= 0 && s.StartTime.CompareTo(end_time) < 0) ||
                                 (s.EndTime.CompareTo(start_time) > 0 && s.EndTime.CompareTo(end_time) <= 0)));
@@ -173,7 +177,7 @@ namespace IbnElgm3a.Controllers.Instructors
         public async Task<IActionResult> CreateSession([FromBody] CreateSessionRequest request)
         {
             var userId = GetUserId();
-            var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
+            var instructor = await _context.Instructors.AsNoTracking().FirstOrDefaultAsync(i => i.UserId == userId);
             if (instructor == null) return Unauthorized();
 
             var section = await _context.Sections.FindAsync(request.SectionId);
