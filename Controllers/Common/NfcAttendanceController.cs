@@ -70,11 +70,41 @@ namespace IbnElgm3a.Controllers.Common
                 return (true, null, null);
             }
 
-            // 4. Card Lookup
-            var card = await _context.Cards
-                .Include(c => c.Student)
-                .ThenInclude(s => s!.User)
-                .FirstOrDefaultAsync(c => c.Uid == request.Uid);
+            // 4. Card Lookup - use Select projection instead of Include
+            var cardData = await _context.Cards
+                .AsNoTracking()
+                .Where(c => c.Uid == request.Uid)
+                .Select(c => new
+                {
+                    c.Id,
+                    c.Uid,
+                    c.Status,
+                    c.StudentId,
+                    StudentUserId = c.Student != null ? c.Student.UserId : null,
+                    StudentName = c.Student != null && c.Student.User != null ? c.Student.User.Name : null
+                })
+                .FirstOrDefaultAsync();
+
+            // Reconstruct a Card-like object for compatibility
+            Card? card = null;
+            if (cardData != null)
+            {
+                card = new Card
+                {
+                    Id = cardData.Id,
+                    Uid = cardData.Uid,
+                    Status = cardData.Status,
+                    StudentId = cardData.StudentId
+                };
+                if (cardData.StudentId != null)
+                {
+                    card.Student = new IbnElgm3a.Models.Data.Student
+                    {
+                        Id = cardData.StudentId,
+                        User = cardData.StudentName != null ? new IbnElgm3a.Models.Data.User { Name = cardData.StudentName } : null
+                    };
+                }
+            }
 
             if (card == null)
             {
@@ -142,6 +172,7 @@ namespace IbnElgm3a.Controllers.Common
 
             // Check for existing open campus session today
             var openSession = await _context.CampusSessions
+                .AsNoTracking()
                 .FirstOrDefaultAsync(cs => cs.StudentId == student.Id && cs.ExitTime == null && cs.EntryTime.Date == today);
 
             if (openSession != null)
@@ -200,6 +231,7 @@ namespace IbnElgm3a.Controllers.Common
 
             // Find most recent open campus session for today
             var openSession = await _context.CampusSessions
+                .AsNoTracking()
                 .OrderByDescending(cs => cs.EntryTime)
                 .FirstOrDefaultAsync(cs => cs.StudentId == student.Id && cs.ExitTime == null && cs.EntryTime.Date == today);
 
@@ -250,6 +282,7 @@ namespace IbnElgm3a.Controllers.Common
 
             // 1. Gate check: query campus_sessions for today's open entry session
             var hasOpenSession = await _context.CampusSessions
+                .AsNoTracking()
                 .AnyAsync(cs => cs.StudentId == student.Id && cs.ExitTime == null && cs.EntryTime.Date == today);
 
             if (!hasOpenSession)
@@ -261,6 +294,7 @@ namespace IbnElgm3a.Controllers.Common
             // 2. Room lookup
             var roomIdStr = request.RoomId.ToString();
             var room = await _context.Rooms
+                .AsNoTracking()
                 .FirstOrDefaultAsync(r => r.Code == roomIdStr || r.Id == roomIdStr);
 
             if (room == null)
@@ -290,10 +324,13 @@ namespace IbnElgm3a.Controllers.Common
             };
 
             var slots = await _context.ScheduleSlots
+                .AsNoTracking()
                 .Where(s => s.RoomId == room.Id && s.Day == dayEnum)
+                .Select(s => new { s.StartTime, s.EndTime, s.SectionId })
                 .ToListAsync();
 
             ScheduleSlot? activeSlot = null;
+            string? activeSectionId = null;
             var currentLocalTime = localTime.TimeOfDay;
             foreach (var slot in slots)
             {
@@ -303,13 +340,13 @@ namespace IbnElgm3a.Controllers.Common
                     var windowEnd = slotEnd.Add(TimeSpan.FromMinutes(15));
                     if (currentLocalTime >= windowStart && currentLocalTime <= windowEnd)
                     {
-                        activeSlot = slot;
+                        activeSectionId = slot.SectionId;
                         break;
                     }
                 }
             }
 
-            if (activeSlot == null)
+            if (activeSectionId == null)
             {
                 await LogAuditAsync(request.Uid, request.DeviceId, "/attendance/room", 404, "denied");
                 return NotFound(new 
@@ -321,15 +358,16 @@ namespace IbnElgm3a.Controllers.Common
                 });
             }
 
-            // Get course name from schedule slot section
-            var section = await _context.Sections
-                .Include(sec => sec.Course)
-                .FirstOrDefaultAsync(sec => sec.Id == activeSlot.SectionId);
-
-            var courseName = section?.Course?.Title ?? "Lecture";
+            // Get course name from schedule slot section - lightweight projection
+            var courseName = await _context.Sections
+                .AsNoTracking()
+                .Where(sec => sec.Id == activeSectionId)
+                .Select(sec => sec.Course != null ? sec.Course.Title : "Lecture")
+                .FirstOrDefaultAsync() ?? "Lecture";
 
             // 4. Check for duplicate scan today
             var hasRegisteredToday = await _context.RoomAttendances
+                .AsNoTracking()
                 .AnyAsync(ra => ra.StudentId == student.Id && ra.RoomId == room.Id && ra.ScannedAt.Date == today);
 
             if (hasRegisteredToday)
@@ -376,8 +414,8 @@ namespace IbnElgm3a.Controllers.Common
             if (isEnroll)
             {
                 // Check if card already exists
-                var existingCard = await _context.Cards.FirstOrDefaultAsync(c => c.Uid == request.Uid);
-                if (existingCard != null)
+                var existingCard = await _context.Cards.AsNoTracking().AnyAsync(c => c.Uid == request.Uid);
+                if (existingCard)
                 {
                     await LogAuditAsync(request.Uid, request.DeviceId, "/admin/card", 409, "denied");
                     return Conflict(new 
@@ -428,14 +466,15 @@ namespace IbnElgm3a.Controllers.Common
             }
             else if ("info".Equals(request.Action, StringComparison.OrdinalIgnoreCase))
             {
-                // Card is retrieved during ValidateScanAsync
-                var studentName = "Unlinked Student";
+                // Get student name via lightweight projection
+                string studentName = "Unlinked Student";
                 if (card!.StudentId != null)
                 {
-                    var student = await _context.Students
-                        .Include(s => s.User)
-                        .FirstOrDefaultAsync(s => s.Id == card.StudentId);
-                    studentName = student?.User?.Name ?? "Unlinked Student";
+                    studentName = await _context.Students
+                        .AsNoTracking()
+                        .Where(s => s.Id == card.StudentId)
+                        .Select(s => s.User != null ? s.User.Name : "Unlinked Student")
+                        .FirstOrDefaultAsync() ?? "Unlinked Student";
                 }
 
                 var statusText = card.Status == "active" ? "Active" : "Inactive";
@@ -472,7 +511,9 @@ namespace IbnElgm3a.Controllers.Common
             }
 
             // 3. Find Student
-            var student = await _context.Students.FirstOrDefaultAsync(s => s.Id == request.StudentId);
+            var student = await _context.Students.AsNoTracking().AnyAsync(s => s.Id == request.StudentId)
+                ? await _context.Students.FirstOrDefaultAsync(s => s.Id == request.StudentId)
+                : null;
             if (student == null)
             {
                 return NotFound(new { error = _localizer.GetMessage("USER_NOT_FOUND") });
@@ -486,8 +527,8 @@ namespace IbnElgm3a.Controllers.Common
             }
 
             // 5. Check if Student already has another card linked
-            var studentCard = await _context.Cards.FirstOrDefaultAsync(c => c.StudentId == student.Id && c.Uid != card.Uid);
-            if (studentCard != null)
+            var hasOtherCard = await _context.Cards.AsNoTracking().AnyAsync(c => c.StudentId == student!.Id && c.Uid != card.Uid);
+            if (hasOtherCard)
             {
                 return Conflict(new { error = "Student is already linked to another card." });
             }

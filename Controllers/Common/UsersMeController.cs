@@ -34,39 +34,63 @@ namespace IbnElgm3a.Controllers.Common
         public async Task<IActionResult> GetProfile()
         {
             var userId = GetUserId();
+
+            // Single projection query - no Include, no tracking
             var user = await _context.Users
-                .Include(u => u.Faculty)
-                .Include(u => u.Department)
-                .Include(u => u.Role)
-                .Include(u => u.Student)
-                .FirstOrDefaultAsync(u => u.Id == userId);
+                .AsNoTracking()
+                .Where(u => u.Id == userId)
+                .Select(u => new
+                {
+                    u.Id,
+                    u.Name,
+                    u.Email,
+                    u.Phone,
+                    u.AvatarUrl,
+                    u.CreatedAt,
+                    u.Status,
+                    RoleName = u.Role != null ? u.Role.Name : null,
+                    FacultyName = u.Faculty != null ? u.Faculty.Name : null,
+                    DepartmentName = u.Department != null ? u.Department.Name : null,
+                    // Student data (null if not student)
+                    StudentId = u.Student != null ? u.Student.Id : null,
+                    AcademicNumber = u.Student != null ? u.Student.AcademicNumber : null,
+                    Level = u.Student != null ? (int?)u.Student.Level : null,
+                    GPA = u.Student != null ? (decimal?)u.Student.GPA : null,
+                    // Instructor data (null if not instructor)
+                    InstructorRank = u.Instructor != null ? u.Instructor.Rank : null,
+                    InstructorOfficeHours = u.Instructor != null ? u.Instructor.OfficeHours : null,
+                    InstructorBio = u.Instructor != null ? u.Instructor.Bio : null,
+                })
+                .FirstOrDefaultAsync();
 
             if (user == null) return Unauthorized();
 
-            if (user.Role?.Name?.ToLower() == "student")
+            var roleName = user.RoleName?.ToLower();
+
+            if (roleName == "student" && user.StudentId != null)
             {
-                var student = user.Student;
+                // Compute completed credits in a single SUM query
                 var completedCredits = await _context.Enrollments
-                    .Include(e => e.Section)
-                        .ThenInclude(s => s!.Course)
-                    .Include(e => e.Grade)
-                    .Where(e => e.StudentId == student!.Id && e.Grade != null && e.Grade.LetterGrade != IbnElgm3a.Enums.LetterGrade.F)
+                    .AsNoTracking()
+                    .Where(e => e.StudentId == user.StudentId
+                        && e.Grade != null
+                        && e.Grade.LetterGrade != IbnElgm3a.Enums.LetterGrade.F)
                     .SumAsync(e => e.Section!.Course!.CreditHours);
 
                 return Ok(new
                 {
                     id = user.Id,
-                    student_id = student?.AcademicNumber ?? "",
+                    student_id = user.AcademicNumber ?? "",
                     name = user.Name,
                     email = user.Email,
                     phone = user.Phone,
-                    faculty = user.Faculty?.Name ?? "",
-                    department = user.Department?.Name ?? "",
-                    year = student?.Level ?? 0,
+                    faculty = user.FacultyName ?? "",
+                    department = user.DepartmentName ?? "",
+                    year = user.Level ?? 0,
                     enrollment_status = user.Status.ToString().ToLower(),
-                    gpa = student?.GPA ?? 0,
+                    gpa = user.GPA ?? 0,
                     credit_hours_completed = completedCredits,
-                    credit_hours_total = 132, // Typical engineering total, could be dynamic later
+                    credit_hours_total = 132,
                     avatar_url = user.AvatarUrl,
                     notification_preferences = new
                     {
@@ -77,13 +101,13 @@ namespace IbnElgm3a.Controllers.Common
                     created_at = user.CreatedAt
                 });
             }
-            else if (user.Role?.Name?.ToLower() == "instructor")
+            else if (roleName == "instructor")
             {
-                var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == user.Id);
                 var nameParts = user.Name.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
                 var firstName = nameParts.Length > 0 ? nameParts[0] : "";
                 var lastName = nameParts.Length > 1 ? nameParts[1] : "";
-                var initials = (firstName.Length > 0 ? firstName.Substring(0, 1) : "") + (lastName.Length > 0 ? lastName.Substring(0, 1) : "");
+                var initials = (firstName.Length > 0 ? firstName[0].ToString() : "")
+                             + (lastName.Length > 0 ? lastName[0].ToString() : "");
 
                 return Ok(new
                 {
@@ -93,13 +117,13 @@ namespace IbnElgm3a.Controllers.Common
                         first_name = firstName,
                         last_name = lastName,
                         full_name = user.Name,
-                        title = instructor?.Rank ?? "",
-                        department = user.Department?.Name ?? "",
+                        title = user.InstructorRank ?? "",
+                        department = user.DepartmentName ?? "",
                         email = user.Email,
                         avatar_url = user.AvatarUrl,
                         initials = initials.ToUpper(),
-                        office_hours = instructor?.OfficeHours,
-                        bio = instructor?.Bio
+                        office_hours = user.InstructorOfficeHours,
+                        bio = user.InstructorBio
                     }
                 });
             }
@@ -111,9 +135,9 @@ namespace IbnElgm3a.Controllers.Common
                     name = user.Name,
                     email = user.Email,
                     phone = user.Phone,
-                    role = user.Role?.Name ?? "staff",
-                    faculty = user.Faculty?.Name ?? "",
-                    department = user.Department?.Name ?? "",
+                    role = user.RoleName ?? "staff",
+                    faculty = user.FacultyName ?? "",
+                    department = user.DepartmentName ?? "",
                     avatar_url = user.AvatarUrl,
                     created_at = user.CreatedAt
                 });
@@ -167,14 +191,12 @@ namespace IbnElgm3a.Controllers.Common
             if (file == null || file.Length == 0)
                 return BadRequest(Models.ApiResponse<object>.CreateError("FILE_EMPTY", _localizer.GetMessage("FILE_EMPTY")));
 
-            // Validation: Size (2MB)
             if (file.Length > 2 * 1024 * 1024)
                 return BadRequest(Models.ApiResponse<object>.CreateError("FILE_TOO_LARGE", _localizer.GetMessage("FILE_TOO_LARGE")));
 
-            // Validation: Type
             var allowedExtensions = new[] { ".jpg", ".jpeg", ".png" };
             var extension = System.IO.Path.GetExtension(file.FileName).ToLower();
-            if (!System.Linq.Enumerable.Contains(allowedExtensions, extension))
+            if (!allowedExtensions.Contains(extension))
                 return BadRequest(Models.ApiResponse<object>.CreateError("FILE_INVALID_TYPE", _localizer.GetMessage("FILE_INVALID_TYPE")));
 
             var userId = GetUserId();
@@ -183,7 +205,6 @@ namespace IbnElgm3a.Controllers.Common
 
             try
             {
-                // Delete old avatar if exists (optional but recommended)
                 if (!string.IsNullOrEmpty(user.AvatarUrl) && user.AvatarUrl.Contains("/uploads/avatars/"))
                 {
                     await _fileStorage.DeleteFileAsync(user.AvatarUrl, "uploads/avatars");
@@ -195,9 +216,8 @@ namespace IbnElgm3a.Controllers.Common
 
                 return Ok(new { avatar_url = fileUrl });
             }
-            catch (System.Exception ex)
+            catch (System.Exception)
             {
-                // Log exception here in production
                 return StatusCode(500, Models.ApiResponse<object>.CreateError("UPLOAD_FAILED", "An error occurred during file upload."));
             }
         }
