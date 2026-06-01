@@ -179,7 +179,337 @@ namespace IbnElgm3a.Models.Seeder
                 }
             }
 
+            // Seed Test Tokens
+            var studentToken = "e08bcadcc88544f283c4fede2b9e29a0";
+            var instructorToken = "d94d8a7577cb49c9aef2f4e1300f5336";
+            var adminToken = "cf15970fd4c64592a6d0323c8eae454a";
+
+            // Student
+            if (specStudentUser != null)
+            {
+                var sTok = await context.Tokens.FirstOrDefaultAsync(t => t.UserId == specStudentUser.Id && t.TokenType == "refresh");
+                if (sTok == null)
+                {
+                    sTok = new Token { UserId = specStudentUser.Id, TokenType = "refresh", CreatedAt = DateTimeOffset.UtcNow };
+                    context.Tokens.Add(sTok);
+                }
+                sTok.TokenValue = studentToken;
+                sTok.ExpiryDate = DateTimeOffset.UtcNow.AddYears(1);
+                sTok.IsRevoked = false;
+            }
+
+            // Instructor
+            if (specInstructorUser != null)
+            {
+                var iTok = await context.Tokens.FirstOrDefaultAsync(t => t.UserId == specInstructorUser.Id && t.TokenType == "refresh");
+                if (iTok == null)
+                {
+                    iTok = new Token { UserId = specInstructorUser.Id, TokenType = "refresh", CreatedAt = DateTimeOffset.UtcNow };
+                    context.Tokens.Add(iTok);
+                }
+                iTok.TokenValue = instructorToken;
+                iTok.ExpiryDate = DateTimeOffset.UtcNow.AddYears(1);
+                iTok.IsRevoked = false;
+            }
+
+            // Admin
+            if (adminUser != null)
+            {
+                var aTok = await context.Tokens.FirstOrDefaultAsync(t => t.UserId == adminUser.Id && t.TokenType == "refresh");
+                if (aTok == null)
+                {
+                    aTok = new Token { UserId = adminUser.Id, TokenType = "refresh", CreatedAt = DateTimeOffset.UtcNow };
+                    context.Tokens.Add(aTok);
+                }
+                aTok.TokenValue = adminToken;
+                aTok.ExpiryDate = DateTimeOffset.UtcNow.AddYears(1);
+                aTok.IsRevoked = false;
+            }
+
             await context.SaveChangesAsync();
+
+            if (specStudentUser != null && specInstructorUser != null)
+            {
+                await SeedTestDataForSpecialUsersAsync(context, specStudentUser, specInstructorUser, adminUser);
+            }
+        }
+
+        private static async Task SeedTestDataForSpecialUsersAsync(AppDbContext context, User specStudentUser, User specInstructorUser, User adminUser)
+        {
+            var student = await context.Students.FirstOrDefaultAsync(s => s.UserId == specStudentUser.Id);
+            var instructor = await context.Instructors.FirstOrDefaultAsync(i => i.UserId == specInstructorUser.Id);
+
+            if (student == null || instructor == null) return;
+
+            var allSections = await context.Sections.ToListAsync();
+            if (!allSections.Any()) return;
+
+            // 1. Assign first 3 sections to instructor
+            var instructorSections = allSections.Take(3).ToList();
+            foreach (var sec in instructorSections)
+            {
+                sec.InstructorId = instructor.Id;
+            }
+            await context.SaveChangesAsync();
+
+            // 2. Enroll student in these 3 sections + 1 more (total 4 sections)
+            var studentSections = allSections.Take(4).ToList();
+            foreach (var sec in studentSections)
+            {
+                var enrollment = await context.Enrollments.FirstOrDefaultAsync(e => e.StudentId == student.Id && e.SectionId == sec.Id);
+                if (enrollment == null)
+                {
+                    enrollment = new Enrollment
+                    {
+                        StudentId = student.Id,
+                        SectionId = sec.Id,
+                        Status = EnrollmentStatus.Enrolled,
+                        EnrolledAt = DateTimeOffset.UtcNow
+                    };
+                    context.Enrollments.Add(enrollment);
+                    await context.SaveChangesAsync();
+                }
+
+                var grade = await context.Grades.FirstOrDefaultAsync(g => g.EnrollmentId == enrollment.Id);
+                if (grade == null)
+                {
+                    grade = new Grade
+                    {
+                        EnrollmentId = enrollment.Id,
+                        Marks = 88.5m,
+                        LetterGrade = LetterGrade.BPlus,
+                        Remarks = "Passed",
+                        LastUpdated = DateTimeOffset.UtcNow
+                    };
+                    context.Grades.Add(grade);
+                }
+            }
+            await context.SaveChangesAsync();
+
+            // 3. Ensure they have schedule slots for these sections
+            var rooms = await context.Rooms.ToListAsync();
+            var currentSemester = await context.Semesters.FirstOrDefaultAsync(s => s.IsActive);
+            if (currentSemester != null && rooms.Any())
+            {
+                for (int i = 0; i < studentSections.Count; i++)
+                {
+                    var sec = studentSections[i];
+                    var hasSlot = await context.ScheduleSlots.AnyAsync(s => s.SectionId == sec.Id);
+                    if (!hasSlot)
+                    {
+                        context.ScheduleSlots.Add(new ScheduleSlot
+                        {
+                            SectionId = sec.Id,
+                            RoomId = rooms[i % rooms.Count].Id,
+                            Day = (DayOfWeekEnum)(i % 6),
+                            StartTime = "10:00",
+                            EndTime = "12:00",
+                            Type = ClassType.Lecture,
+                            SemesterId = currentSemester.Id
+                        });
+                    }
+                }
+                await context.SaveChangesAsync();
+            }
+
+            // 4. Create Sessions for the last 4 weeks + this week (today)
+            var today = DateTime.UtcNow.Date;
+            var random = new Random();
+            for (int i = 0; i < studentSections.Count; i++)
+            {
+                var sec = studentSections[i];
+                var slots = await context.ScheduleSlots.Where(s => s.SectionId == sec.Id).ToListAsync();
+                foreach (var slot in slots)
+                {
+                    for (int w = 0; w <= 4; w++) // 0 is this week, 1-4 are past weeks
+                    {
+                        var sessionDate = today.AddDays(-(w * 7)).AddDays((int)slot.Day - (int)today.DayOfWeek);
+                        var session = await context.Sessions.FirstOrDefaultAsync(s => s.SectionId == sec.Id && s.Date == sessionDate);
+                        if (session == null)
+                        {
+                            session = new Session
+                            {
+                                SectionId = sec.Id,
+                                Date = sessionDate,
+                                StartTime = slot.StartTime,
+                                EndTime = slot.EndTime,
+                                Type = slot.Type,
+                                AttendanceStatus = w == 0 ? "pending" : "completed",
+                                RoomName = rooms.FirstOrDefault()?.Name ?? "Main Hall",
+                                SessionNumber = w + 1,
+                                WeekNumber = w + 1
+                            };
+                            context.Sessions.Add(session);
+                            await context.SaveChangesAsync();
+                        }
+
+                        // Attendance for specStudent
+                        var attRecord = await context.AttendanceRecords.FirstOrDefaultAsync(a => a.SessionId == session.Id && a.StudentId == student.Id);
+                        if (attRecord == null)
+                        {
+                            attRecord = new AttendanceRecord
+                            {
+                                SessionId = session.Id,
+                                StudentId = student.Id,
+                                Status = (w == 0) ? "pending" : (random.Next(0, 10) < 9 ? "present" : "absent")
+                            };
+                            context.AttendanceRecords.Add(attRecord);
+                        }
+                    }
+                }
+            }
+            await context.SaveChangesAsync();
+
+            // 5. Seed Specific Exams for Student
+            var studentCourses = studentSections.Select(s => s.CourseId).ToList();
+            var exams = await context.Exams.Where(e => studentCourses.Contains(e.CourseId)).ToListAsync();
+            if (!exams.Any() && currentSemester != null && rooms.Any())
+            {
+                foreach (var courseId in studentCourses)
+                {
+                    var exam = new Exam
+                    {
+                        CourseId = courseId,
+                        SemesterId = currentSemester.Id,
+                        Type = ExamType.Midterm,
+                        Date = DateTimeOffset.UtcNow.AddDays(14),
+                        StartTime = "09:00",
+                        Status = ExamStatus.Published,
+                        DurationMinutes = 120,
+                        HallId = rooms[0].Id
+                    };
+                    context.Exams.Add(exam);
+                    await context.SaveChangesAsync();
+
+                    context.ExamInvigilators.Add(new ExamInvigilator
+                    {
+                        ExamId = exam.Id,
+                        UserId = instructor.UserId
+                    });
+                }
+                await context.SaveChangesAsync();
+            }
+
+            // 6. Seed Specific Assignments & Submissions
+            var assignments = await context.Assignments.Where(a => studentCourses.Contains(a.CourseId)).ToListAsync();
+            foreach (var courseId in studentCourses)
+            {
+                var courseAssignments = assignments.Where(a => a.CourseId == courseId).ToList();
+                if (!courseAssignments.Any())
+                {
+                    var a1 = new Assignment { CourseId = courseId, Title = "Unit 1 Assignment", Description = "Solve exercise questions", DueDate = DateTime.UtcNow.AddDays(-5), MaxPoints = 100, Status = "published", GradesPublished = true };
+                    var a2 = new Assignment { CourseId = courseId, Title = "Midterm Assignment", Description = "Submit your proposal", DueDate = DateTime.UtcNow.AddDays(7), MaxPoints = 100, Status = "published", GradesPublished = false };
+                    context.Assignments.AddRange(a1, a2);
+                    await context.SaveChangesAsync();
+                    courseAssignments.Add(a1);
+                    courseAssignments.Add(a2);
+                }
+
+                foreach (var assign in courseAssignments)
+                {
+                    var submission = await context.AssignmentSubmissions.FirstOrDefaultAsync(s => s.AssignmentId == assign.Id && s.StudentId == student.Id);
+                    if (submission == null)
+                    {
+                        if (assign.DueDate < DateTime.UtcNow)
+                        {
+                            context.AssignmentSubmissions.Add(new AssignmentSubmission
+                            {
+                                AssignmentId = assign.Id,
+                                StudentId = student.Id,
+                                Status = "graded",
+                                Score = 92,
+                                Feedback = "Excellent effort!",
+                                SubmittedAt = assign.DueDate.AddDays(-2)
+                            });
+                        }
+                        else
+                        {
+                            context.AssignmentSubmissions.Add(new AssignmentSubmission
+                            {
+                                AssignmentId = assign.Id,
+                                StudentId = student.Id,
+                                Status = "submitted",
+                                SubmittedAt = DateTime.UtcNow.AddHours(-1)
+                            });
+                        }
+                    }
+                }
+            }
+            await context.SaveChangesAsync();
+
+            // 7. Seed Specific Complaints for Student
+            var complaints = await context.Complaints.Where(c => c.StudentId == student.UserId).ToListAsync();
+            if (!complaints.Any())
+            {
+                var c1 = new Complaint
+                {
+                    StudentId = student.UserId,
+                    TicketNumber = "TKT-SPEC-001",
+                    Title = "Library access issue",
+                    Description = "I cannot login to the library portal.",
+                    Type = ComplaintType.Facility,
+                    Status = ComplaintStatus.Open,
+                    LastResponseAt = DateTimeOffset.UtcNow.AddHours(-2)
+                };
+                var c2 = new Complaint
+                {
+                    StudentId = student.UserId,
+                    TicketNumber = "TKT-SPEC-002",
+                    Title = "Midterm Exam Grade Review",
+                    Description = "I request review for my midterm exam in ENG101.",
+                    Type = ComplaintType.Academic,
+                    Status = ComplaintStatus.Resolved,
+                    Response = "Grade was verified and is correct.",
+                    LastResponseAt = DateTimeOffset.UtcNow.AddDays(-1)
+                };
+                context.Complaints.AddRange(c1, c2);
+                await context.SaveChangesAsync();
+
+                if (adminUser != null)
+                {
+                    context.ComplaintNotes.Add(new ComplaintNote { ComplaintId = c1.Id, Text = "Forwarded to library admin.", AuthorId = adminUser.Id });
+                    context.ComplaintNotes.Add(new ComplaintNote { ComplaintId = c2.Id, Text = "Verified by exam committee.", AuthorId = adminUser.Id });
+                }
+                await context.SaveChangesAsync();
+            }
+
+            // 8. Seed Specific Notifications for Student
+            var notifications = await context.Notifications.Where(n => n.StudentId == student.Id).ToListAsync();
+            if (!notifications.Any())
+            {
+                context.Notifications.Add(new Notification
+                {
+                    StudentId = student.Id,
+                    Title = "Assignment Grade Published",
+                    Body = "Your grade for 'Unit 1 Assignment' is ready.",
+                    Type = "assignment",
+                    CreatedAt = DateTimeOffset.UtcNow.AddHours(-1)
+                });
+                context.Notifications.Add(new Notification
+                {
+                    StudentId = student.Id,
+                    Title = "New Course Material",
+                    Body = "Week 2 Lecture Notes uploaded.",
+                    Type = "course",
+                    CreatedAt = DateTimeOffset.UtcNow.AddDays(-2)
+                });
+                await context.SaveChangesAsync();
+            }
+
+            // 9. Seed NFC Card for Student
+            var card = await context.Cards.FirstOrDefaultAsync(c => c.StudentId == student.Id);
+            if (card == null)
+            {
+                context.Cards.Add(new Card
+                {
+                    Uid = "AA:BB:CC:DD:99",
+                    StudentId = student.Id,
+                    Status = "active",
+                    EnrolledBy = "seeder",
+                    EnrolledAt = DateTimeOffset.UtcNow
+                });
+                await context.SaveChangesAsync();
+            }
         }
 
         private static async Task<List<Role>> SeedRolesAsync(AppDbContext context)
