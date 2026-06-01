@@ -5,6 +5,7 @@ using IbnElgm3a.Services;
 using IbnElgm3a.Services.Localization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Authentication;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -120,13 +121,24 @@ namespace IbnElgm3a.Controllers.Common
         [AllowAnonymous]
         public async Task<IActionResult> BiometricLogin([FromBody] BiometricLoginRequestDto request)
         {
-            var result = await _authService.BiometricLoginAsync(request);
-            if (result == null)
+            try
             {
-                return Unauthorized(ApiResponse<object>.CreateError("INVALID_SIGNATURE", _localizer.GetMessage("INVALID_SIGNATURE")));
-            }
+                var result = await _authService.BiometricLoginAsync(request);
+                if (result == null)
+                {
+                    return Unauthorized(ApiResponse<object>.CreateError("INVALID_SIGNATURE", _localizer.GetMessage("INVALID_SIGNATURE")));
+                }
 
-            return Ok(result);
+                return Ok(result);
+            }
+            catch (AuthenticationException ex) when (ex.Message == "BIOMETRIC_AUTH_DISABLED")
+            {
+                return BadRequest(ApiResponse<object>.CreateError("BIOMETRIC_AUTH_DISABLED", _localizer.GetMessage("BIOMETRIC_AUTH_DISABLED")));
+            }
+            catch (AuthenticationException ex) when (ex.Message == "INVALID_CHALLENGE")
+            {
+                return BadRequest(ApiResponse<object>.CreateError("INVALID_CHALLENGE", _localizer.GetMessage("INVALID_CHALLENGE")));
+            }
         }
 
         [HttpPost("biometric/register")]

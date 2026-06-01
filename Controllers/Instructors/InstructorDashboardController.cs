@@ -17,13 +17,11 @@ namespace IbnElgm3a.Controllers.Instructors
     {
         private readonly AppDbContext _context;
         private readonly ILocalizationService _localizer;
-        private readonly IServiceScopeFactory _scopeFactory;
 
-        public InstructorDashboardController(AppDbContext context, ILocalizationService localizer, IServiceScopeFactory scopeFactory)
+        public InstructorDashboardController(AppDbContext context, ILocalizationService localizer)
         {
             _context = context;
             _localizer = localizer;
-            _scopeFactory = scopeFactory;
         }
 
         private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
@@ -33,36 +31,23 @@ namespace IbnElgm3a.Controllers.Instructors
         {
             var userId = GetUserId();
 
-            // Round 1: Fetch instructor and semesters in parallel using separate scopes
-            var instructorTask = Task.Run(async () =>
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                return await db.Instructors
-                    .AsNoTracking()
-                    .Include(i => i.User)
-                    .FirstOrDefaultAsync(i => i.UserId == userId);
-            });
+            // 1. Fetch instructor details (Fast, single query on same context)
+            var instructor = await _context.Instructors
+                .AsNoTracking()
+                .Include(i => i.User)
+                .FirstOrDefaultAsync(i => i.UserId == userId);
 
-            var semestersTask = Task.Run(async () =>
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                return await db.Semesters
-                    .AsNoTracking()
-                    .OrderByDescending(s => s.StartDate)
-                    .ToListAsync();
-            });
-
-            await Task.WhenAll(instructorTask, semestersTask);
-
-            var instructor = await instructorTask;
             if (instructor == null)
             {
                 return Unauthorized(ApiResponse<object>.CreateError("UNAUTHORIZED", _localizer.GetMessage("UNAUTHORIZED")));
             }
 
-            var semesters = await semestersTask;
+            // 2. Fetch semesters list (Fast, simple query)
+            var semesters = await _context.Semesters
+                .AsNoTracking()
+                .OrderByDescending(s => s.StartDate)
+                .ToListAsync();
+
             var now = DateTimeOffset.UtcNow;
             var todayUtc = DateTime.SpecifyKind(now.Date, DateTimeKind.Utc);
             var tomorrowUtc = todayUtc.AddDays(1);
@@ -78,14 +63,25 @@ namespace IbnElgm3a.Controllers.Instructors
             if (currentWeek < 1) currentWeek = 1;
             if (currentWeek > activeSemester.TotalWeeks) currentWeek = activeSemester.TotalWeeks;
 
-            // Instructor's Courses
-            var activeCourses = await _context.Sections
+            // 3. Fetch instructor's active sections, course details, enrollment counts, schedule slots, and pending submissions count in a single query.
+            var sectionsData = await _context.Sections
                 .AsNoTracking()
-                .Include(s => s.Course)
                 .Where(s => s.InstructorId == instructor.Id && s.Course!.SemesterId == activeSemester.Id)
-                .Select(s => s.Course)
-                .Distinct()
+                .Select(s => new
+                {
+                    SectionId = s.Id,
+                    Course = s.Course,
+                    StudentCount = s.Enrollments.Count(e => e.Status == Enums.EnrollmentStatus.Enrolled),
+                    PendingCount = _context.AssignmentSubmissions.Count(sub => sub.Assignment!.CourseId == s.CourseId && sub.Status == "submitted"),
+                    ScheduleSlots = s.ScheduleSlots.Select(ss => new { ss.Day, ss.StartTime }).ToList()
+                })
                 .ToListAsync();
+
+            var activeCourses = sectionsData
+                .Select(s => s.Course)
+                .Where(c => c != null)
+                .DistinctBy(c => c!.Id)
+                .ToList();
 
             var courseIds = activeCourses.Select(c => c!.Id).ToList();
 
@@ -121,115 +117,53 @@ namespace IbnElgm3a.Controllers.Instructors
                 });
             }
 
-            // Round 2 Parallel Queries:
-            var totalStudentsTask = Task.Run(async () =>
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                return await db.Enrollments
-                    .AsNoTracking()
-                    .Where(e => courseIds.Contains(e.Section!.CourseId) && e.Status == Enums.EnrollmentStatus.Enrolled)
-                    .Select(e => e.StudentId)
-                    .Distinct()
-                    .CountAsync();
-            });
+            // 4. Fetch total unique students (Fast index query)
+            var sectionIds = sectionsData.Select(s => s.SectionId).ToList();
+            var totalStudents = await _context.Enrollments
+                .AsNoTracking()
+                .Where(e => sectionIds.Contains(e.SectionId) && e.Status == Enums.EnrollmentStatus.Enrolled)
+                .Select(e => e.StudentId)
+                .Distinct()
+                .CountAsync();
 
-            var submissionsToGradeTask = Task.Run(async () =>
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                return await db.AssignmentSubmissions
-                    .AsNoTracking()
-                    .CountAsync(s => courseIds.Contains(s.Assignment!.CourseId) && s.Status == "submitted");
-            });
+            // 5. Fetch total submissions to grade (Fast index query)
+            var submissionsToGrade = await _context.AssignmentSubmissions
+                .AsNoTracking()
+                .CountAsync(s => courseIds.Contains(s.Assignment!.CourseId) && s.Status == "submitted");
 
-            var atRiskStatsTask = Task.Run(async () =>
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                // Project stats to avoid untranslatable nested GroupBy inside Count predicate
-                return await db.Enrollments
-                    .AsNoTracking()
-                    .Where(e => courseIds.Contains(e.Section!.CourseId) && e.Status == Enums.EnrollmentStatus.Enrolled)
-                    .Select(e => new
-                    {
-                        StudentId = e.StudentId,
-                        TotalSessions = db.AttendanceRecords.Count(a => a.StudentId == e.StudentId && courseIds.Contains(a.Session!.Section!.CourseId) && a.Session.AttendanceStatus == "completed"),
-                        PresentSessions = db.AttendanceRecords.Count(a => a.StudentId == e.StudentId && courseIds.Contains(a.Session!.Section!.CourseId) && a.Session.AttendanceStatus == "completed" && (a.Status == "present" || a.Status == "late"))
-                    })
-                    .ToListAsync();
-            });
-
-            var todaysSessionsTask = Task.Run(async () =>
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                return await db.Sessions
-                    .AsNoTracking()
-                    .Include(s => s.Section)
-                        .ThenInclude(sec => sec!.Course)
-                    .Where(s => s.Section!.InstructorId == instructor.Id && s.Date >= todayUtc && s.Date < tomorrowUtc)
-                    .OrderBy(s => s.StartTime)
-                    .Select(s => new
-                    {
-                        session_id = s.Id,
-                        course_id = s.Section!.CourseId,
-                        course_code = s.Section.Course!.CourseCode,
-                        course_name = s.Section.Course.Title,
-                        start_time = s.StartTime,
-                        end_time = s.EndTime,
-                        room = s.RoomName,
-                        student_count = db.Enrollments.Count(e => e.SectionId == s.SectionId && e.Status == Enums.EnrollmentStatus.Enrolled),
-                        attendance_status = s.AttendanceStatus
-                    })
-                    .ToListAsync();
-            });
-
-            var courseCountsTask = Task.Run(async () =>
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                return await db.Sections
-                    .AsNoTracking()
-                    .Where(s => s.InstructorId == instructor.Id && courseIds.Contains(s.CourseId))
-                    .Select(s => new
-                    {
-                        CourseId = s.CourseId,
-                        StudentCount = db.Enrollments.Count(e => e.SectionId == s.Id && e.Status == Enums.EnrollmentStatus.Enrolled),
-                        PendingCount = db.AssignmentSubmissions.Count(sub => sub.Assignment!.CourseId == s.CourseId && sub.Status == "submitted")
-                    })
-                    .ToListAsync();
-            });
-
-            var scheduleSlotsTask = Task.Run(async () =>
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                // Fetch to project Day.ToString() in memory to avoid Postgres translation error on Enum to string conversions
-                return await db.ScheduleSlots
-                    .AsNoTracking()
-                    .Where(ss => courseIds.Contains(ss.Section!.CourseId))
-                    .Select(ss => new { ss.Section!.CourseId, ss.Day, ss.StartTime })
-                    .ToListAsync();
-            });
-
-            await Task.WhenAll(
-                totalStudentsTask,
-                submissionsToGradeTask,
-                atRiskStatsTask,
-                todaysSessionsTask,
-                courseCountsTask,
-                scheduleSlotsTask
-            );
-
-            var totalStudents = await totalStudentsTask;
-            var submissionsToGrade = await submissionsToGradeTask;
-            var atRiskStats = await atRiskStatsTask;
-            var todaysSessions = await todaysSessionsTask;
-            var courseCounts = await courseCountsTask;
-            var scheduleSlots = await scheduleSlotsTask;
+            // 6. Fetch at-risk students by grouping attendance records (Highly performant, 100% translatable)
+            var atRiskStats = await _context.AttendanceRecords
+                .AsNoTracking()
+                .Where(a => courseIds.Contains(a.Session!.Section!.CourseId) && a.Session.AttendanceStatus == "completed")
+                .GroupBy(a => a.StudentId)
+                .Select(g => new
+                {
+                    StudentId = g.Key,
+                    TotalSessions = g.Count(),
+                    PresentSessions = g.Count(a => a.Status == "present" || a.Status == "late")
+                })
+                .ToListAsync();
 
             var atRiskCount = atRiskStats.Count(s => s.TotalSessions > 0 && (double)s.PresentSessions / s.TotalSessions < 0.6);
+
+            // 7. Fetch today's sessions (Fast query)
+            var todaysSessions = await _context.Sessions
+                .AsNoTracking()
+                .Where(s => s.Section!.InstructorId == instructor.Id && s.Date >= todayUtc && s.Date < tomorrowUtc)
+                .OrderBy(s => s.StartTime)
+                .Select(s => new
+                {
+                    session_id = s.Id,
+                    course_id = s.Section!.CourseId,
+                    course_code = s.Section.Course!.CourseCode,
+                    course_name = s.Section.Course.Title,
+                    start_time = s.StartTime,
+                    end_time = s.EndTime,
+                    room = s.RoomName,
+                    student_count = _context.Enrollments.Count(e => e.SectionId == s.SectionId && e.Status == Enums.EnrollmentStatus.Enrolled),
+                    attendance_status = s.AttendanceStatus
+                })
+                .ToListAsync();
 
             var nameParts = instructor.User?.Name.Split(' ');
             var greetingName = nameParts?.Length > 0 ? nameParts[0] : instructor.User?.Name;
@@ -263,10 +197,17 @@ namespace IbnElgm3a.Controllers.Instructors
                 todays_sessions = todaysSessions,
                 courses = activeCourses.Select(c =>
                 {
-                    var countData = courseCounts.FirstOrDefault(cc => cc.CourseId == c!.Id);
-                    var slot = scheduleSlots.FirstOrDefault(ss => ss.CourseId == c!.Id);
-                    var scheduleSummary = slot != null
-                        ? slot.Day.ToString().Substring(0, Math.Min(3, slot.Day.ToString().Length)) + " " + slot.StartTime
+                    // Aggregate stats for this course across its sections
+                    var courseSections = sectionsData.Where(sd => sd.Course!.Id == c!.Id).ToList();
+                    var studentCount = courseSections.Sum(cs => cs.StudentCount);
+                    var pendingCount = courseSections.FirstOrDefault()?.PendingCount ?? 0;
+                    
+                    var firstSlot = courseSections
+                        .SelectMany(cs => cs.ScheduleSlots)
+                        .FirstOrDefault();
+
+                    var scheduleSummary = firstSlot != null
+                        ? firstSlot.Day.ToString().Substring(0, Math.Min(3, firstSlot.Day.ToString().Length)) + " " + firstSlot.StartTime
                         : "";
 
                     return new
@@ -277,11 +218,11 @@ namespace IbnElgm3a.Controllers.Instructors
                         semester = activeSemester.Name,
                         week_current = currentWeek,
                         week_total = activeSemester.TotalWeeks,
-                        student_count = countData?.StudentCount ?? 0,
+                        student_count = studentCount,
                         status = semesterStatus,
                         schedule_summary = scheduleSummary,
                         progress_percent = activeSemester.TotalWeeks > 0 ? (int)((double)currentWeek / activeSemester.TotalWeeks * 100) : 0,
-                        pending_submissions_count = countData?.PendingCount ?? 0
+                        pending_submissions_count = pendingCount
                     };
                 }).ToList()
             };

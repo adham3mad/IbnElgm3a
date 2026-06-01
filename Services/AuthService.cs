@@ -4,11 +4,14 @@ using IbnElgm3a.Models;
 using IbnElgm3a.Models.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Security.Authentication;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -19,12 +22,14 @@ namespace IbnElgm3a.Services
         private readonly AppDbContext _context;
         private readonly IEmailService _emailService;
         private readonly IConfiguration _config;
+        private readonly IDistributedCache _cache;
 
-        public AuthService(AppDbContext context, IConfiguration config, IEmailService emailService)
+        public AuthService(AppDbContext context, IConfiguration config, IEmailService emailService, IDistributedCache cache)
         {
             _context = context;
             _config = config;
             _emailService = emailService;
+            _cache = cache;
         }
 
         public async Task<LoginResponseDto?> LoginAsync(LoginRequestDto request)
@@ -211,16 +216,39 @@ namespace IbnElgm3a.Services
 
         public async Task<LoginResponseDto?> BiometricLoginAsync(BiometricLoginRequestDto request)
         {
+            // 1. Check if biometric login is globally enabled
+            var setting = await _context.SystemSettings.FindAsync("biometric_auth_enabled");
+            if (setting != null && setting.ValueJson.ToLower() == "false")
+            {
+                throw new AuthenticationException("BIOMETRIC_AUTH_DISABLED");
+            }
+
+            // 2. Validate and consume the challenge (prevent replay attack)
+            var cacheKey = $"biometric_challenge:{request.Challenge}";
+            var challengeExists = await _cache.GetStringAsync(cacheKey);
+            if (string.IsNullOrEmpty(challengeExists))
+            {
+                throw new AuthenticationException("INVALID_CHALLENGE");
+            }
+            await _cache.RemoveAsync(cacheKey);
+
+            // 3. Find the device
             var device = await _context.Devices
                 .Include(d => d.User)
                     .ThenInclude(u => u!.Role)
                         .ThenInclude(r => r!.Permissions)
                             .ThenInclude(p => p.Feature)
-                .FirstOrDefaultAsync(d => d.DeviceId == request.DeviceId && 
-                                          d.BiometricPublicKey == request.BiometricSignature && 
-                                          d.IsActive);
+                .FirstOrDefaultAsync(d => d.DeviceId == request.DeviceId && d.IsActive);
 
             if (device == null || device.User == null || device.User.Status != IbnElgm3a.Enums.UserStatus.Active) 
+                return null;
+
+            if (string.IsNullOrEmpty(device.BiometricPublicKey))
+                return null;
+
+            // 4. Verify the cryptographic signature
+            bool isSignatureValid = VerifyBiometricSignature(device.BiometricPublicKey, request.Challenge, request.BiometricSignature);
+            if (!isSignatureValid)
                 return null;
 
             device.LastUsedAt = DateTimeOffset.UtcNow;
@@ -235,8 +263,115 @@ namespace IbnElgm3a.Services
 
         public async Task<string> GetBiometricChallengeAsync()
         {
-            // Simple challenge for now, could be stored in cache/session if needed
-            return await Task.FromResult(Guid.NewGuid().ToString("N"));
+            var challengeBytes = new byte[32];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(challengeBytes);
+            }
+            var challenge = Convert.ToBase64String(challengeBytes);
+
+            // Store in cache for 5 minutes
+            var cacheKey = $"biometric_challenge:{challenge}";
+            await _cache.SetStringAsync(cacheKey, "1", new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+            });
+
+            return challenge;
+        }
+
+        private bool VerifyBiometricSignature(string publicKeyBase64, string challenge, string signatureBase64)
+        {
+            try
+            {
+                byte[] challengeBytes = Encoding.UTF8.GetBytes(challenge);
+                byte[] signatureBytes = Convert.FromBase64String(signatureBase64);
+
+                // 1. Try ECDSA verification
+                try
+                {
+                    using var ecdsa = ECDsa.Create();
+                    if (publicKeyBase64.StartsWith("-----BEGIN") || publicKeyBase64.Contains("-----BEGIN"))
+                    {
+                        ecdsa.ImportFromPem(publicKeyBase64);
+                    }
+                    else
+                    {
+                        byte[] publicKeyBytes = Convert.FromBase64String(publicKeyBase64);
+                        try
+                        {
+                            ecdsa.ImportSubjectPublicKeyInfo(publicKeyBytes, out _);
+                        }
+                        catch
+                        {
+                            // Try raw key bytes (65 bytes uncompressed P-256 public key starts with 0x04)
+                            if (publicKeyBytes.Length == 65 && publicKeyBytes[0] == 0x04)
+                            {
+                                ecdsa.ImportParameters(new ECParameters
+                                {
+                                    Curve = ECCurve.NamedCurves.nistP256,
+                                    Q = new ECPoint
+                                    {
+                                        X = publicKeyBytes.AsSpan(1, 32).ToArray(),
+                                        Y = publicKeyBytes.AsSpan(33, 32).ToArray()
+                                    }
+                                });
+                            }
+                            else
+                            {
+                                throw;
+                            }
+                        }
+                    }
+
+                    // Try verifying using standard DER format (Rfc3279DerSequence)
+                    bool verified = ecdsa.VerifyData(challengeBytes, signatureBytes, HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence);
+                    if (!verified)
+                    {
+                        // Try verifying using IEEE P1363 (raw R|S) format
+                        verified = ecdsa.VerifyData(challengeBytes, signatureBytes, HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
+                    }
+
+                    if (verified) return true;
+                }
+                catch
+                {
+                    // Fall through to RSA verification if ECDSA fails
+                }
+
+                // 2. Try RSA verification
+                try
+                {
+                    using var rsa = RSA.Create();
+                    if (publicKeyBase64.StartsWith("-----BEGIN") || publicKeyBase64.Contains("-----BEGIN"))
+                    {
+                        rsa.ImportFromPem(publicKeyBase64);
+                    }
+                    else
+                    {
+                        byte[] publicKeyBytes = Convert.FromBase64String(publicKeyBase64);
+                        rsa.ImportSubjectPublicKeyInfo(publicKeyBytes, out _);
+                    }
+
+                    bool verified = rsa.VerifyData(challengeBytes, signatureBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+                    if (!verified)
+                    {
+                        verified = rsa.VerifyData(challengeBytes, signatureBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pss);
+                    }
+
+                    if (verified) return true;
+                }
+                catch
+                {
+                    // Ignore and let it fall through to false
+                }
+            }
+            catch
+            {
+                // Catch any malformed Base64 or out-of-range exception during parsing
+            }
+
+            return false;
         }
 
         private async Task<AuthUserDto> MapToAuthUserDtoAsync(User user)
