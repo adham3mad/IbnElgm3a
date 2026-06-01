@@ -1,5 +1,6 @@
 using IbnElgm3a.Models;
 using IbnElgm3a.Models.Data;
+using IbnElgm3a.Enums;
 using IbnElgm3a.Services;
 using IbnElgm3a.Services.Localization;
 using IbnElgm3a.Attributes;
@@ -30,7 +31,7 @@ namespace IbnElgm3a.Controllers.Instructors
         private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
 
         [HttpGet("courses/{course_id}/assignments")]
-        public async Task<IActionResult> GetAssignments(string course_id, [FromQuery] string? status)
+        public async Task<IActionResult> GetAssignments(string course_id, [FromQuery] AssignmentStatus? status)
         {
             var userId = GetUserId();
             var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
@@ -44,9 +45,10 @@ namespace IbnElgm3a.Controllers.Instructors
 
             var query = _context.Assignments.Where(a => a.CourseId == course_id);
 
-            if (!string.IsNullOrEmpty(status) && status != "all")
+            if (status.HasValue)
             {
-                query = query.Where(a => a.Status == status);
+                var statusStr = status.Value.ToString().ToLower();
+                query = query.Where(a => a.Status.ToLower() == statusStr.ToLower());
             }
 
             var rawAssignments = await query
@@ -201,7 +203,7 @@ namespace IbnElgm3a.Controllers.Instructors
 
         [HttpGet("assignments/{assignment_id}/submissions")]
         [BypassResponseWrapper]
-        public async Task<IActionResult> GetSubmissions(string assignment_id, [FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int limit = 30)
+        public async Task<IActionResult> GetSubmissions(string assignment_id, [FromQuery] SubmissionStatus? status, [FromQuery] int page = 1, [FromQuery] int limit = 30)
         {
             var userId = GetUserId();
             var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
@@ -264,9 +266,10 @@ namespace IbnElgm3a.Controllers.Instructors
                 };
             }).ToList();
 
-            if (!string.IsNullOrEmpty(status))
+            if (status.HasValue)
             {
-                submissionsList = submissionsList.Where(s => s.status.Equals(status, StringComparison.OrdinalIgnoreCase)).ToList();
+                var statusStr = status.Value.ToString().ToLower();
+                submissionsList = submissionsList.Where(s => s.status.ToLower() == statusStr.ToLower()).ToList();
             }
 
             // Order: ungraded first (submitted, late), then graded, then missing. Within each group, ordered by submitted_at ASC.

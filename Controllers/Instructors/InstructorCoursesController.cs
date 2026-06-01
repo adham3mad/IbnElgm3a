@@ -1,6 +1,7 @@
 using IbnElgm3a.Attributes;
 using IbnElgm3a.Models;
 using IbnElgm3a.Models.Data;
+using IbnElgm3a.Enums;
 using IbnElgm3a.Services;
 using IbnElgm3a.Services.Localization;
 using Microsoft.AspNetCore.Authorization;
@@ -27,7 +28,7 @@ namespace IbnElgm3a.Controllers.Instructors
         private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
 
         [HttpGet]
-        public async Task<IActionResult> GetCourses([FromQuery] string? semester, [FromQuery] string status = "active")
+        public async Task<IActionResult> GetCourses([FromQuery] string? semester, [FromQuery] InstructorCourseStatus status = InstructorCourseStatus.Active)
         {
             var userId = GetUserId();
             var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
@@ -45,14 +46,15 @@ namespace IbnElgm3a.Controllers.Instructors
             }
             
             // Simplified status filter
-            if (status == "active")
+            if (status == InstructorCourseStatus.Active)
             {
-                query = query.Where(s => s.Course!.Semester!.StartDate <= now && s.Course!.Semester!.EndDate >= now);
+                query = query.Where(s => s.Course!.Semester!.IsActive);
             }
 
             var courses = await query
                 .Select(s => s.Course)
                 .Distinct()
+                .Include(c => c!.Semester)
                 .ToListAsync();
 
             var activeSemester = await _context.Semesters
@@ -69,14 +71,14 @@ namespace IbnElgm3a.Controllers.Instructors
                     name = c.Title,
                     semester = c.Semester?.Name ?? "",
                     week_current = activeSemester != null ? (now - activeSemester.StartDate).Days / 7 + 1 : 1,
-                    week_total = c.Semester?.TotalWeeks ?? 14,
+                    week_total = c.Semester == null || c.Semester.TotalWeeks == 0 ? 14 : c.Semester.TotalWeeks,
                     student_count = _context.Enrollments.Count(e => e.Section!.CourseId == c.Id && e.Status == Enums.EnrollmentStatus.Enrolled),
                     status = "active",
                     schedule_summary = _context.ScheduleSlots
                         .Where(ss => ss.Section!.CourseId == c.Id)
                         .Select(ss => ss.Day.ToString().Substring(0, 3) + " " + ss.StartTime)
                         .FirstOrDefault() ?? "",
-                    progress_percent = activeSemester != null ? (int)((double)((now - activeSemester.StartDate).Days / 7 + 1) / activeSemester.TotalWeeks * 100) : 0,
+                    progress_percent = activeSemester != null && activeSemester.TotalWeeks > 0 ? (int)((double)((now - activeSemester.StartDate).Days / 7 + 1) / activeSemester.TotalWeeks * 100) : 0,
                     pending_submissions_count = _context.AssignmentSubmissions.Count(s => s.Assignment!.CourseId == c.Id && s.Status == "submitted")
                 }).OrderBy(c => c.code).ToList()
             });
@@ -169,7 +171,7 @@ namespace IbnElgm3a.Controllers.Instructors
                 name = course.Title,
                 semester = course.Semester.Name,
                 week_current = currentWeek,
-                week_total = course.Semester.TotalWeeks,
+                week_total = course.Semester.TotalWeeks == 0 ? 14 : course.Semester.TotalWeeks,
                 student_count = studentCount,
                 status = "active",
                 schedule_summary = schedule.FirstOrDefault()?.day_of_week + " " + schedule.FirstOrDefault()?.start_time,
@@ -221,7 +223,7 @@ namespace IbnElgm3a.Controllers.Instructors
         }
 
         [HttpGet("{course_id}/roster")]
-        public async Task<IActionResult> GetRoster(string course_id, [FromQuery] string? risk_status, [FromQuery] int page = 1, [FromQuery] int limit = 50)
+        public async Task<IActionResult> GetRoster(string course_id, [FromQuery] RosterRiskStatus? risk_status, [FromQuery] int page = 1, [FromQuery] int limit = 50)
         {
             var enrollments = await _context.Enrollments
                 .Include(e => e.Student)
@@ -258,9 +260,14 @@ namespace IbnElgm3a.Controllers.Instructors
                 };
             }).ToList();
 
-            if (!string.IsNullOrEmpty(risk_status))
+            if (risk_status.HasValue)
             {
-                students = students.Where(s => s.risk_status == risk_status).ToList();
+                var riskStr = risk_status.Value switch
+                {
+                    RosterRiskStatus.AtRisk => "at_risk",
+                    _ => risk_status.Value.ToString().ToLower()
+                };
+                students = students.Where(s => s.risk_status == riskStr).ToList();
             }
 
             var totalItems = students.Count;

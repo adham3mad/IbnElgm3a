@@ -30,7 +30,7 @@ namespace IbnElgm3a.Controllers.Students
         private string GetUserId() => User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
 
         [HttpGet]
-        public async Task<IActionResult> GetComplaints([FromQuery] string? status = null, [FromQuery] int page = 1, [FromQuery] int per_page = 20)
+        public async Task<IActionResult> GetComplaints([FromQuery] ComplaintStatus? status = null, [FromQuery] int page = 1, [FromQuery] int per_page = 20)
         {
             var userId = GetUserId();
             var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
@@ -40,9 +40,9 @@ namespace IbnElgm3a.Controllers.Students
                 .Where(c => c.StudentId == student.Id)
                 .AsQueryable();
 
-            if (!string.IsNullOrEmpty(status) && Enum.TryParse<ComplaintStatus>(status, true, out var parsedStatus))
+            if (status.HasValue)
             {
-                query = query.Where(c => c.Status == parsedStatus);
+                query = query.Where(c => c.Status == status.Value);
             }
             var lastActiveAt = await _context.Users
                 .Where(u => u.Id == userId)

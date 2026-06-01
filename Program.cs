@@ -43,6 +43,10 @@ namespace IbnElgm3a
             builder.Services.AddControllers(options =>
             {
                 options.Filters.Add<IbnElgm3a.Filters.StandardResponseWrapperFilter>();
+            })
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
             });
 
             builder.Services.AddMemoryCache();

@@ -813,7 +813,8 @@ namespace IbnElgm3a.Models.Seeder
                     NameAr = "ربيع 2024",
                     StartDate = DateTimeOffset.UtcNow.AddMonths(-2),
                     EndDate = DateTimeOffset.UtcNow.AddMonths(2),
-                    IsActive = true
+                    IsActive = true,
+                    TotalWeeks = 16
                 };
                 context.Semesters.Add(semester);
                 await context.SaveChangesAsync();

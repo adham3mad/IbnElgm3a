@@ -1,5 +1,6 @@
 using IbnElgm3a.Models;
 using IbnElgm3a.Models.Data;
+using IbnElgm3a.Enums;
 using IbnElgm3a.Services;
 using IbnElgm3a.Services.Localization;
 using Microsoft.AspNetCore.Authorization;
@@ -33,7 +34,7 @@ namespace IbnElgm3a.Controllers.Common
 
         [HttpGet]
         public async Task<IActionResult> GetNotifications(
-            [FromQuery] string? type = null, 
+            [FromQuery] NotificationType? type = null, 
             [FromQuery] bool unread_only = false, 
             [FromQuery] int page = 1, 
             [FromQuery] int per_page = 20,
@@ -52,9 +53,10 @@ namespace IbnElgm3a.Controllers.Common
 
                 var query = _context.Notifications.AsNoTracking().Where(n => n.StudentId == student.Id).AsQueryable();
 
-                if (!string.IsNullOrEmpty(type))
+                if (type.HasValue)
                 {
-                    query = query.Where(n => n.Type == type);
+                    var typeStr = type.Value.ToString().ToLower();
+                    query = query.Where(n => n.Type.ToLower() == typeStr.ToLower());
                 }
                 if (unread_only)
                 {
@@ -90,9 +92,10 @@ namespace IbnElgm3a.Controllers.Common
                 // Instructor
                 var query = _context.Notifications.AsNoTracking().Where(n => n.UserId == userId).AsQueryable();
 
-                if (!string.IsNullOrEmpty(type))
+                if (type.HasValue)
                 {
-                    query = query.Where(n => n.Type == type);
+                    var typeStr = type.Value.ToString().ToLower();
+                    query = query.Where(n => n.Type.ToLower() == typeStr.ToLower());
                 }
                 if (unread_only)
                 {

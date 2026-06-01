@@ -28,7 +28,7 @@ namespace IbnElgm3a.Controllers.Students
 
         [HttpGet]
         [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Client)]
-        public async Task<IActionResult> GetExams([FromQuery] string? type = null, [FromQuery] string? semester_id = null)
+        public async Task<IActionResult> GetExams([FromQuery] ExamType? type = null, [FromQuery] string? semester_id = null)
         {
             var userId = GetUserId();
             var student = await _context.Students.FirstOrDefaultAsync(s => s.UserId == userId);
@@ -42,10 +42,10 @@ namespace IbnElgm3a.Controllers.Students
 
             var enrollments = await _context.Enrollments
                 .Include(e => e.Section)
-                    .ThenInclude(sec => sec!.Course)
+                .ThenInclude(sec => sec!.Course)
                 .Include(e => e.Section)
-                    .ThenInclude(sec => sec!.Instructor)
-                        .ThenInclude(i => i!.User)
+                .ThenInclude(sec => sec!.Instructor)
+                .ThenInclude(i => i!.User)
                 .Where(e => e.StudentId == student.Id && e.Status == EnrollmentStatus.Enrolled)
                 .ToListAsync();
 
@@ -57,9 +57,9 @@ namespace IbnElgm3a.Controllers.Students
                 .Where(e => courseIds.Contains(e.CourseId) && e.SemesterId == activeSemester.Id && e.Status == ExamStatus.Published)
                 .AsQueryable();
 
-            if (!string.IsNullOrEmpty(type) && Enum.TryParse<ExamType>(type, true, out var parsedType))
+            if (type.HasValue)
             {
-                query = query.Where(e => e.Type == parsedType);
+                query = query.Where(e => e.Type == type.Value);
             }
 
             var exams = await query.ToListAsync();

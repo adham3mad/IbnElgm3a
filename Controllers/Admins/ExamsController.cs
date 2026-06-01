@@ -34,8 +34,8 @@ namespace IbnElgm3a.Controllers.Admins
         [RequirePermission(PermissionEnum.Dashboard_Exams_Read)]
         public async Task<IActionResult> GetExams(
             [FromQuery] string? semester_id = null,
-            [FromQuery] string? type = null,
-            [FromQuery] string? status = null,
+            [FromQuery] ExamType? type = null,
+            [FromQuery] ExamStatus? status = null,
             [FromQuery] string? date = null)
         {
             var query = _context.Exams
@@ -48,11 +48,8 @@ namespace IbnElgm3a.Controllers.Admins
             {
                 query = query.Where(e => e.Date.Date == parsedDate.Date);
             }
-            if (!string.IsNullOrEmpty(status) && System.Enum.TryParse<IbnElgm3a.Enums.ExamStatus>(status, true, out var parsedStatus))
-                query = query.Where(e => e.Status == parsedStatus);
-                
-            if (!string.IsNullOrEmpty(type) && System.Enum.TryParse<IbnElgm3a.Enums.ExamType>(type, true, out var parsedType))
-                query = query.Where(e => e.Type == parsedType);
+            if (status.HasValue) query = query.Where(e => e.Status == status.Value);
+            if (type.HasValue) query = query.Where(e => e.Type == type.Value);
 
             var exams = await query
                 .OrderByDescending(e => e.Date)

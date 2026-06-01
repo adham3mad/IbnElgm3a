@@ -1,5 +1,6 @@
 using IbnElgm3a.Models;
 using IbnElgm3a.Models.Data;
+using IbnElgm3a.Enums;
 using IbnElgm3a.Services;
 using IbnElgm3a.Services.Localization;
 using IbnElgm3a.Attributes;
@@ -29,7 +30,7 @@ namespace IbnElgm3a.Controllers.Instructors
         private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
 
         [HttpGet("courses/{course_id}/quizzes")]
-        public async Task<IActionResult> GetQuizzes(string course_id, [FromQuery] string? status)
+        public async Task<IActionResult> GetQuizzes(string course_id, [FromQuery] QuizStatus? status)
         {
             var userId = GetUserId();
             var instructor = await _context.Instructors.FirstOrDefaultAsync(i => i.UserId == userId);
@@ -68,9 +69,10 @@ namespace IbnElgm3a.Controllers.Instructors
                 };
             }).ToList();
 
-            if (!string.IsNullOrEmpty(status) && status != "all")
+            if (status.HasValue)
             {
-                mappedQuizzes = mappedQuizzes.Where(q => q.status.Equals(status, StringComparison.OrdinalIgnoreCase)).ToList();
+                var statusStr = status.Value.ToString().ToLower();
+                mappedQuizzes = mappedQuizzes.Where(q => q.status.ToLower() == statusStr.ToLower()).ToList();
             }
 
             // Order: published first (by closes_at ASC), then closed (by closes_at DESC), then draft (by created_at DESC)
