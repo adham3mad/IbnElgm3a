@@ -399,7 +399,7 @@ namespace IbnElgm3a.Controllers.Instructors
                 }
             }
 
-            return CreatedAtAction(nameof(GetSessionDetail), new { session_id = baseSession.Id }, new
+            return StatusCode(201, new
             {
                 data = new
                 {
