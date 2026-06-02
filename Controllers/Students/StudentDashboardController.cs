@@ -91,7 +91,7 @@ namespace IbnElgm3a.Controllers.Students
                     DepartmentName = s.User != null && s.User.Department != null ? s.User.Department.Name : null,
                     DepartmentNameAr = s.User != null && s.User.Department != null ? s.User.Department.NameAr : null,
 
-                    OpenComplaints = _context.Complaints.Count(c => c.StudentId == s.Id && c.Status != ComplaintStatus.Resolved && c.Status != ComplaintStatus.Closed),
+                    OpenComplaints = _context.Complaints.Count(c => c.StudentId == userId && c.Status != ComplaintStatus.Resolved && c.Status != ComplaintStatus.Closed),
                     
                     UnreadNotifications = _context.Notifications.Count(n => n.StudentId == s.Id && !n.IsRead),
                     

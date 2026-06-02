@@ -72,6 +72,7 @@ namespace IbnElgm3a.Services.Localization
                     { "BIOMETRIC_AUTH_DISABLED", "تسجيل الدخول بالبصمة معطل حالياً من الإدارة" },
                     { "INVALID_CHALLENGE", "رمز التحدي البيومتري غير صالح أو منتهي الصلاحية" },
                     { "INVALID_PASSWORD", "كلمة المرور الحالية غير صحيحة" },
+                    { "INVALID_PHONE", "رقم الهاتف غير صالح. يجب أن يكون رقم هاتف مصري صحيح (مثال: 01012345678)" },
                     { "FILE_INVALID_TYPE", "نوع الملف غير صالح. المسموح: .jpg, .jpeg, .png" },
                     { "FILE_TOO_LARGE", "حجم الملف كبير جداً. الحد الأقصى: 2 ميجابايت" },
                     { "PASSWORD_MISSING_UPPER", "يجب أن تحتوي كلمة المرور على حرف كبير واحد على الأقل." },
@@ -159,7 +160,11 @@ namespace IbnElgm3a.Services.Localization
                     { "NFC_CARD_DEACTIVATED_MSG", "تم التعطيل" },
                     { "NFC_CARD_DEACTIVATED_SUB", "تم إيقاف البطاقة" },
                     { "NFC_CARD_FOUND_MSG", "تم العثور عليها" },
-                    { "NFC_UNSUPPORTED_ACTION", "عملية غير مدعومة" }
+                    { "NFC_UNSUPPORTED_ACTION", "عملية غير مدعومة" },
+                    { "NFC_NO_CARD_RECENTLY_SCANNED", "لم يتم مسح أي بطاقة مؤخراً" },
+                    { "NFC_STUDENT_ALREADY_LINKED", "الطالب مرتبط ببطاقة أخرى بالفعل" },
+                    { "NFC_CARD_LINKED_SUCCESS", "تم ربط البطاقة بالطالب بنجاح" },
+                    { "NFC_CARD_UNLINKED_SUCCESS", "تم إلغاء ربط البطاقة بنجاح" }
                 }
             },
             {
@@ -214,6 +219,7 @@ namespace IbnElgm3a.Services.Localization
                     { "BIOMETRIC_AUTH_DISABLED", "Biometric authentication is currently disabled by the administrator." },
                     { "INVALID_CHALLENGE", "The biometric challenge is invalid or has expired." },
                     { "INVALID_PASSWORD", "Current password is incorrect." },
+                    { "INVALID_PHONE", "Invalid phone number. Must be a valid Egyptian mobile number (e.g., 01012345678)." },
                     { "FILE_INVALID_TYPE", "Invalid file type. Allowed: .jpg, .jpeg, .png" },
                     { "FILE_TOO_LARGE", "File is too large. Maximum size: 2MB" },
                     { "PASSWORD_MISSING_UPPER", "Password must contain at least one uppercase letter." },
@@ -300,7 +306,11 @@ namespace IbnElgm3a.Services.Localization
                     { "NFC_CARD_DEACTIVATED_MSG", "DEACTIVATED" },
                     { "NFC_CARD_DEACTIVATED_SUB", "Card disabled" },
                     { "NFC_CARD_FOUND_MSG", "FOUND" },
-                    { "NFC_UNSUPPORTED_ACTION", "Unsupported admin action" }
+                    { "NFC_UNSUPPORTED_ACTION", "Unsupported admin action" },
+                    { "NFC_NO_CARD_RECENTLY_SCANNED", "No card was recently scanned" },
+                    { "NFC_STUDENT_ALREADY_LINKED", "Student is already linked to another card" },
+                    { "NFC_CARD_LINKED_SUCCESS", "Card linked to student successfully" },
+                    { "NFC_CARD_UNLINKED_SUCCESS", "Card unlinked successfully" }
                 }
             }
         };

@@ -51,7 +51,7 @@ namespace IbnElgm3a.Controllers.Students
 
             var query = _context.Complaints
                 .AsNoTracking()
-                .Where(c => c.StudentId == userData.Id);
+                .Where(c => c.StudentId == userId);
 
             if (status.HasValue)
             {
@@ -102,7 +102,7 @@ namespace IbnElgm3a.Controllers.Students
 
             var complaint = await _context.Complaints
                 .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.Id == id && c.StudentId == studentData.Id);
+                .FirstOrDefaultAsync(c => c.Id == id && c.StudentId == userId);
 
             if (complaint == null) return NotFound(new { error = "not_found", message = _localizer.GetMessage("COMPLAINT_NOT_FOUND") });
 
@@ -176,7 +176,7 @@ namespace IbnElgm3a.Controllers.Students
 
             var comp = new Complaint
             {
-                StudentId = studentId,
+                StudentId = userId,
                 Type = type,
                 Title = dto.Title,
                 Description = dto.Description,
@@ -209,7 +209,7 @@ namespace IbnElgm3a.Controllers.Students
 
             if (studentData == null) return Unauthorized();
 
-            var complaint = await _context.Complaints.FirstOrDefaultAsync(c => c.Id == id && c.StudentId == studentData.Id);
+            var complaint = await _context.Complaints.FirstOrDefaultAsync(c => c.Id == id && c.StudentId == userId);
             if (complaint == null) return NotFound(new { error = "not_found", message = "Complaint not found" });
 
             if (complaint.Status == ComplaintStatus.Closed)

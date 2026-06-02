@@ -9,15 +9,17 @@ using IbnElgm3a.Enums;
 using IbnElgm3a.Models;
 using IbnElgm3a.Models.Data;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using System.Threading.Channels;
 using IbnElgm3a.Services.Localization;
 
 namespace IbnElgm3a.Controllers.Common
 {
     [ApiController]
-    [AllowAnonymous]
+    [Authorize]
     [BypassResponseWrapper]
     public class NfcAttendanceController : ControllerBase
     {
@@ -25,6 +27,16 @@ namespace IbnElgm3a.Controllers.Common
         private readonly IMemoryCache _cache;
         private readonly ILocalizationService _localizer;
         private const string UidRegexPattern = @"^([0-9A-F]{2}:)*[0-9A-F]{2}$";
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, Channel<object>> _subscribers = new();
+
+        private static void NotifyCardScanned(object cardDetails)
+        {
+            foreach (var channel in _subscribers.Values)
+            {
+                channel.Writer.TryWrite(cardDetails);
+            }
+        }
 
         public NfcAttendanceController(AppDbContext context, IMemoryCache cache, ILocalizationService localizer)
         {
@@ -150,6 +162,7 @@ namespace IbnElgm3a.Controllers.Common
         }
 
         [HttpPost("attendance/entry")]
+        [AllowAnonymous]
         public async Task<IActionResult> EntryScan([FromBody] NfcBaseRequest request)
         {
             var (isValid, errorResult, card) = await ValidateScanAsync(request, "/attendance/entry");
@@ -209,6 +222,7 @@ namespace IbnElgm3a.Controllers.Common
         }
 
         [HttpPost("attendance/exit")]
+        [AllowAnonymous]
         public async Task<IActionResult> ExitScan([FromBody] NfcBaseRequest request)
         {
             var (isValid, errorResult, card) = await ValidateScanAsync(request, "/attendance/exit");
@@ -260,6 +274,7 @@ namespace IbnElgm3a.Controllers.Common
         }
 
         [HttpPost("attendance/room")]
+        [AllowAnonymous]
         public async Task<IActionResult> RoomScan([FromBody] NfcRoomRequest request)
         {
             var (isValid, errorResult, card) = await ValidateScanAsync(request, "/attendance/room");
@@ -404,12 +419,40 @@ namespace IbnElgm3a.Controllers.Common
         }
 
         [HttpPost("admin/card")]
-        // [RequirePermission(PermissionEnum.manage_cards)]
+        [AllowAnonymous]
         public async Task<IActionResult> AdminCardScan([FromBody] NfcAdminRequest request)
         {
             var isEnroll = "enroll".Equals(request.Action, StringComparison.OrdinalIgnoreCase);
             var (isValid, errorResult, card) = await ValidateScanAsync(request, "/admin/card", skipCardLookup: isEnroll);
-            if (!isValid) return errorResult!;
+            if (!isValid)
+            {
+                if (errorResult is NotFoundObjectResult)
+                {
+                    // Notify UI that a card was scanned but is pending registration
+                    NotifyCardScanned(new
+                    {
+                        Id = (string?)null,
+                        Uid = request.Uid,
+                        Status = "pending",
+                        StudentId = (string?)null,
+                        StudentName = (string?)null,
+                        DeviceId = request.DeviceId,
+                        ScannedAt = DateTimeOffset.UtcNow
+                    });
+                }
+                return errorResult!;
+            }
+
+            // Cache the last scanned card UID for the device and globally
+            if (!string.IsNullOrEmpty(request.Uid))
+            {
+                var cacheOptions = new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10)
+                };
+                _cache.Set($"last_scanned_card:{request.DeviceId}", request.Uid, cacheOptions);
+                _cache.Set("last_scanned_card_global", request.Uid, cacheOptions);
+            }
 
             if (isEnroll)
             {
@@ -441,6 +484,18 @@ namespace IbnElgm3a.Controllers.Common
                 await LogAuditAsync(request.Uid, request.DeviceId, "/admin/card", 200, "granted");
                 await _context.SaveChangesAsync();
 
+                // Notify UI of the newly enrolled card
+                NotifyCardScanned(new
+                {
+                    Id = newCard.Id,
+                    Uid = newCard.Uid,
+                    Status = newCard.Status,
+                    StudentId = (string?)null,
+                    StudentName = (string?)null,
+                    DeviceId = request.DeviceId,
+                    ScannedAt = DateTimeOffset.UtcNow
+                });
+
                 return Ok(new
                 {
                     allowed = true,
@@ -456,6 +511,18 @@ namespace IbnElgm3a.Controllers.Common
 
                 await LogAuditAsync(request.Uid, request.DeviceId, "/admin/card", 200, "granted");
                 await _context.SaveChangesAsync();
+
+                // Notify UI of deactivated card status
+                NotifyCardScanned(new
+                {
+                    Id = card.Id,
+                    Uid = card.Uid,
+                    Status = card.Status,
+                    StudentId = card.StudentId,
+                    StudentName = card.Student != null && card.Student.User != null ? card.Student.User.Name : null,
+                    DeviceId = request.DeviceId,
+                    ScannedAt = DateTimeOffset.UtcNow
+                });
 
                 return Ok(new
                 {
@@ -482,6 +549,18 @@ namespace IbnElgm3a.Controllers.Common
 
                 await LogAuditAsync(request.Uid, request.DeviceId, "/admin/card", 200, "granted");
 
+                // Notify UI of card information scan
+                NotifyCardScanned(new
+                {
+                    Id = card.Id,
+                    Uid = card.Uid,
+                    Status = card.Status,
+                    StudentId = card.StudentId,
+                    StudentName = studentName != "Unlinked Student" ? studentName : null,
+                    DeviceId = request.DeviceId,
+                    ScannedAt = DateTimeOffset.UtcNow
+                });
+
                 return Ok(new
                 {
                     allowed = true,
@@ -493,61 +572,8 @@ namespace IbnElgm3a.Controllers.Common
             return BadRequest(new { error = _localizer.GetMessage("NFC_UNSUPPORTED_ACTION") });
         }
 
-        [HttpPost("admin/card/link")]
-        // [RequirePermission(PermissionEnum.manage_cards)]
-        public async Task<IActionResult> LinkCard([FromBody] NfcLinkRequest request)
-        {
-            // 1. Validate Secret
-            var serverSecret = Environment.GetEnvironmentVariable("ESP32_SECRET");
-            if (string.IsNullOrEmpty(serverSecret) || request.Secret != serverSecret)
-            {
-                return StatusCode(401, new { error = _localizer.GetMessage("NFC_INVALID_SECRET") });
-            }
-
-            // 2. Validate Card Uid Format
-            if (string.IsNullOrEmpty(request.Uid) || !Regex.IsMatch(request.Uid, UidRegexPattern, RegexOptions.IgnoreCase))
-            {
-                return StatusCode(422, new { error = _localizer.GetMessage("NFC_INVALID_UID_FORMAT") });
-            }
-
-            // 3. Find Student
-            var student = await _context.Students.AsNoTracking().AnyAsync(s => s.Id == request.StudentId)
-                ? await _context.Students.FirstOrDefaultAsync(s => s.Id == request.StudentId)
-                : null;
-            if (student == null)
-            {
-                return NotFound(new { error = _localizer.GetMessage("USER_NOT_FOUND") });
-            }
-
-            // 4. Find Card
-            var card = await _context.Cards.FirstOrDefaultAsync(c => c.Uid == request.Uid);
-            if (card == null)
-            {
-                return NotFound(new { error = _localizer.GetMessage("NFC_CARD_NOT_FOUND_ERR") });
-            }
-
-            // 5. Check if Student already has another card linked
-            var hasOtherCard = await _context.Cards.AsNoTracking().AnyAsync(c => c.StudentId == student!.Id && c.Uid != card.Uid);
-            if (hasOtherCard)
-            {
-                return Conflict(new { error = "Student is already linked to another card." });
-            }
-
-            // 6. Link Card
-            card.StudentId = student.Id;
-            card.UpdatedAt = DateTimeOffset.UtcNow;
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                success = true,
-                message = "Card linked to student successfully.",
-                uid = card.Uid,
-                student_id = card.StudentId
-            });
-        }
-
         [HttpGet("attendance/test/diagnostics")]
+        [RequirePermission(PermissionEnum.manage_cards)]
         public async Task<IActionResult> GetDiagnostics()
         {
             var cards = await _context.Cards
@@ -565,5 +591,253 @@ namespace IbnElgm3a.Controllers.Common
 
             return Ok(new { cards, studentCount, students, rooms });
         }
+
+        [HttpGet("admin/card/stream")]
+        [RequirePermission(PermissionEnum.manage_cards)]
+        public async Task GetCardStream(CancellationToken cancellationToken)
+        {
+            Response.ContentType = "text/event-stream";
+            Response.Headers["Cache-Control"] = "no-cache";
+            Response.Headers["Connection"] = "keep-alive";
+
+            // Write initial connection success message
+            await Response.WriteAsync("data: {\"status\":\"connected\"}\n\n", cancellationToken);
+            await Response.Body.FlushAsync(cancellationToken);
+
+            var subscriptionId = Guid.NewGuid();
+            var channel = Channel.CreateUnbounded<object>();
+            _subscribers[subscriptionId] = channel;
+
+            try
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    var readTask = channel.Reader.ReadAsync(cancellationToken).AsTask();
+                    var delayTask = Task.Delay(5000, cancellationToken);
+
+                    var completedTask = await Task.WhenAny(readTask, delayTask);
+                    if (completedTask == readTask)
+                    {
+                        var cardDetails = await readTask;
+                        var json = System.Text.Json.JsonSerializer.Serialize(cardDetails);
+                        await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
+                        await Response.Body.FlushAsync(cancellationToken);
+                    }
+                    else
+                    {
+                        // Heartbeat
+                        await Response.WriteAsync(":\n\n", cancellationToken);
+                        await Response.Body.FlushAsync(cancellationToken);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Disconnection expected
+            }
+            finally
+            {
+                _subscribers.TryRemove(subscriptionId, out _);
+            }
+        }
+
+        [HttpPost("admin/card/link-student")]
+        [RequirePermission(PermissionEnum.manage_cards)]
+        public async Task<IActionResult> LinkCardForApp([FromBody] NfcLinkStudentRequest request)
+        {
+            if (string.IsNullOrEmpty(request.Uid) || !Regex.IsMatch(request.Uid, UidRegexPattern, RegexOptions.IgnoreCase))
+            {
+                return StatusCode(422, new { error = _localizer.GetMessage("NFC_INVALID_UID_FORMAT") });
+            }
+
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.Id == request.StudentId || s.UserId == request.StudentId || s.AcademicNumber == request.StudentId);
+            if (student == null)
+            {
+                return NotFound(new { error = _localizer.GetMessage("USER_NOT_FOUND") });
+            }
+
+            var card = await _context.Cards.FirstOrDefaultAsync(c => c.Uid == request.Uid);
+            if (card == null)
+            {
+                card = new Card
+                {
+                    Uid = request.Uid,
+                    StudentId = student.Id,
+                    Status = "active",
+                    EnrolledBy = "App",
+                    EnrolledAt = DateTimeOffset.UtcNow
+                };
+                _context.Cards.Add(card);
+            }
+            else
+            {
+                var hasOtherCard = await _context.Cards.AsNoTracking().AnyAsync(c => c.StudentId == student.Id && c.Uid != card.Uid);
+                if (hasOtherCard)
+                {
+                    return Conflict(new { error = _localizer.GetMessage("NFC_STUDENT_ALREADY_LINKED") });
+                }
+
+                card.StudentId = student.Id;
+                card.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                message = _localizer.GetMessage("NFC_CARD_LINKED_SUCCESS"),
+                uid = card.Uid,
+                student_id = card.StudentId
+            });
+        }
+
+        [HttpPatch("admin/card/link-student")]
+        [RequirePermission(PermissionEnum.manage_cards)]
+        public async Task<IActionResult> UpdateCardLinkForApp([FromBody] NfcLinkStudentRequest request)
+        {
+            if (string.IsNullOrEmpty(request.Uid) || !Regex.IsMatch(request.Uid, UidRegexPattern, RegexOptions.IgnoreCase))
+            {
+                return StatusCode(422, new { error = _localizer.GetMessage("NFC_INVALID_UID_FORMAT") });
+            }
+
+            var card = await _context.Cards.FirstOrDefaultAsync(c => c.Uid == request.Uid);
+            if (card == null)
+            {
+                return NotFound(new { error = _localizer.GetMessage("NFC_CARD_NOT_FOUND_ERR") });
+            }
+
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.Id == request.StudentId || s.UserId == request.StudentId || s.AcademicNumber == request.StudentId);
+            if (student == null)
+            {
+                return NotFound(new { error = _localizer.GetMessage("USER_NOT_FOUND") });
+            }
+
+            var hasOtherCard = await _context.Cards.AsNoTracking().AnyAsync(c => c.StudentId == student.Id && c.Uid != card.Uid);
+            if (hasOtherCard)
+            {
+                return Conflict(new { error = _localizer.GetMessage("NFC_STUDENT_ALREADY_LINKED") });
+            }
+
+            card.StudentId = student.Id;
+            card.UpdatedAt = DateTimeOffset.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                message = _localizer.GetMessage("NFC_CARD_LINKED_SUCCESS"),
+                uid = card.Uid,
+                student_id = card.StudentId
+            });
+        }
+
+        [HttpDelete("admin/card/link-student")]
+        [RequirePermission(PermissionEnum.manage_cards)]
+        public async Task<IActionResult> UnlinkCardForApp([FromQuery] string? uid = null, [FromQuery] string? studentId = null)
+        {
+            if (string.IsNullOrEmpty(uid) && string.IsNullOrEmpty(studentId))
+            {
+                return BadRequest(new { error = "Either Uid or studentId must be provided." });
+            }
+
+            Card? card = null;
+            if (!string.IsNullOrEmpty(uid))
+            {
+                if (!Regex.IsMatch(uid, UidRegexPattern, RegexOptions.IgnoreCase))
+                {
+                    return StatusCode(422, new { error = _localizer.GetMessage("NFC_INVALID_UID_FORMAT") });
+                }
+                card = await _context.Cards.FirstOrDefaultAsync(c => c.Uid == uid);
+            }
+            else if (!string.IsNullOrEmpty(studentId))
+            {
+                card = await _context.Cards.FirstOrDefaultAsync(c => c.StudentId == studentId);
+            }
+
+            if (card == null)
+            {
+                return NotFound(new { error = _localizer.GetMessage("NFC_CARD_NOT_FOUND_ERR") });
+            }
+
+            card.StudentId = null;
+            card.UpdatedAt = DateTimeOffset.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                message = _localizer.GetMessage("NFC_CARD_UNLINKED_SUCCESS"),
+                uid = card.Uid
+            });
+        }
+
+        // [HttpGet("admin/card/last-scanned")]
+        // public async Task<IActionResult> GetLastScannedCard([FromQuery] string? deviceId = null)
+        // {
+        //     var cacheKey = !string.IsNullOrEmpty(deviceId) 
+        //         ? $"last_scanned_card:{deviceId}" 
+        //         : "last_scanned_card_global";
+
+        //     if (_cache.TryGetValue(cacheKey, out string? uid) && !string.IsNullOrEmpty(uid))
+        //     {
+        //         var card = await _context.Cards
+        //             .AsNoTracking()
+        //             .Where(c => c.Uid == uid)
+        //             .Select(c => new
+        //             {
+        //                 c.Id,
+        //                 c.Uid,
+        //                 c.Status,
+        //                 c.StudentId,
+        //                 StudentName = c.Student != null && c.Student.User != null ? c.Student.User.Name : null
+        //             })
+        //             .FirstOrDefaultAsync();
+
+        //         if (card != null)
+        //         {
+        //             return Ok(card);
+        //         }
+
+        //         return Ok(new
+        //         {
+        //             Uid = uid,
+        //             Status = "pending",
+        //             StudentId = (string?)null,
+        //             StudentName = (string?)null
+        //         });
+        //     }
+
+        //     return NotFound(new { error = _localizer.GetMessage("NFC_NO_CARD_RECENTLY_SCANNED") });
+        // }
+
+        // [HttpGet("admin/card/by-uid/{uid}")]
+        // public async Task<IActionResult> GetCardByUid(string uid)
+        // {
+        //     if (string.IsNullOrEmpty(uid) || !Regex.IsMatch(uid, UidRegexPattern, RegexOptions.IgnoreCase))
+        //     {
+        //         return StatusCode(422, new { error = _localizer.GetMessage("NFC_INVALID_UID_FORMAT") });
+        //     }
+
+        //     var card = await _context.Cards
+        //         .AsNoTracking()
+        //         .Where(c => c.Uid == uid)
+        //         .Select(c => new
+        //         {
+        //             c.Id,
+        //             c.Uid,
+        //             c.Status,
+        //             c.StudentId,
+        //             StudentName = c.Student != null && c.Student.User != null ? c.Student.User.Name : null
+        //         })
+        //         .FirstOrDefaultAsync();
+
+        //     if (card == null)
+        //     {
+        //         return NotFound(new { error = _localizer.GetMessage("NFC_CARD_NOT_FOUND_ERR") });
+        //     }
+
+        //     return Ok(card);
+        // }
     }
 }

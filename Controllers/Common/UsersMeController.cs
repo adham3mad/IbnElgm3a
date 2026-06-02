@@ -117,6 +117,7 @@ namespace IbnElgm3a.Controllers.Common
                         first_name = firstName,
                         last_name = lastName,
                         full_name = user.Name,
+                        phone = user.Phone,
                         title = user.InstructorRank ?? "",
                         department = user.DepartmentName ?? "",
                         email = user.Email,
@@ -153,7 +154,15 @@ namespace IbnElgm3a.Controllers.Common
 
             if (!string.IsNullOrEmpty(request.FullName)) user.Name = request.FullName;
             if (!string.IsNullOrEmpty(request.Email)) user.Email = request.Email;
-            if (!string.IsNullOrEmpty(request.Phone)) user.Phone = request.Phone;
+            if (!string.IsNullOrEmpty(request.Phone))
+            {
+                var phonePattern = @"^(\+20|0020|0)?1[0125][0-9]{8}$";
+                if (!System.Text.RegularExpressions.Regex.IsMatch(request.Phone, phonePattern))
+                {
+                    return BadRequest(Models.ApiResponse<object>.CreateError("INVALID_PHONE", _localizer.GetMessage("INVALID_PHONE")));
+                }
+                user.Phone = request.Phone;
+            }
 
             await _context.SaveChangesAsync();
 
