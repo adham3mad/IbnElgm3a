@@ -153,14 +153,16 @@ namespace IbnElgm3a.Controllers.Instructors
             if (!isTeaching) return Forbid();
 
             var now = DateTimeOffset.UtcNow;
-            var currentWeek = (now - course.Semester!.StartDate).Days / 7 + 1;
+            var currentWeek = course.Semester != null
+                ? (now - course.Semester.StartDate).Days / 7 + 1
+                : 1;
 
-            // Parallel lightweight queries
-            var studentCountTask = _context.Enrollments
+            // Sequential queries to avoid EF Core DbContext concurrency exceptions
+            var studentCount = await _context.Enrollments
                 .AsNoTracking()
                 .CountAsync(e => e.Section!.CourseId == course_id && e.Status == EnrollmentStatus.Enrolled);
 
-            var scheduleTask = _context.ScheduleSlots
+            var schedule = await _context.ScheduleSlots
                 .AsNoTracking()
                 .Where(ss => ss.Section!.CourseId == course_id && ss.Section.InstructorId == instructorId)
                 .Select(ss => new
@@ -173,41 +175,32 @@ namespace IbnElgm3a.Controllers.Instructors
                 })
                 .ToListAsync();
 
-            var gradesTask = _context.Grades
+            var gradesList = (await _context.Grades
                 .AsNoTracking()
                 .Where(g => g.Enrollment!.Section!.CourseId == course_id)
+                .ToListAsync())
                 .Select(g => (double)g.Marks)
-                .ToListAsync();
+                .ToList();
 
-            var attendanceTask = _context.AttendanceRecords
+            var attendanceRecords = await _context.AttendanceRecords
                 .AsNoTracking()
                 .Where(a => a.Session!.Section!.CourseId == course_id && a.Session.AttendanceStatus == "completed")
                 .Select(a => new { a.SessionId, a.StudentId, a.Status })
                 .ToListAsync();
 
-            var pendingSubsTask = _context.AssignmentSubmissions
+            var pendingSubmissions = await _context.AssignmentSubmissions
                 .AsNoTracking()
                 .CountAsync(s => s.Assignment!.CourseId == course_id && s.Status == "submitted");
 
-            var completedSessionsTask = _context.Sessions
+            var completedSessionsCount = await _context.Sessions
                 .AsNoTracking()
                 .CountAsync(s => s.Section!.CourseId == course_id && s.AttendanceStatus == "completed");
 
-            var enrolledStudentIdsTask = _context.Enrollments
+            var enrolledStudentIds = await _context.Enrollments
                 .AsNoTracking()
                 .Where(e => e.Section!.CourseId == course_id && e.Status == EnrollmentStatus.Enrolled)
                 .Select(e => e.StudentId)
                 .ToListAsync();
-
-            await Task.WhenAll(studentCountTask, scheduleTask, gradesTask, attendanceTask, pendingSubsTask, completedSessionsTask, enrolledStudentIdsTask);
-
-            var studentCount = studentCountTask.Result;
-            var schedule = scheduleTask.Result;
-            var gradesList = gradesTask.Result;
-            var attendanceRecords = attendanceTask.Result;
-            var pendingSubmissions = pendingSubsTask.Result;
-            var completedSessionsCount = completedSessionsTask.Result;
-            var enrolledStudentIds = enrolledStudentIdsTask.Result;
 
             var classAverage = gradesList.Any() ? gradesList.Average() : 0.0;
 
@@ -235,19 +228,21 @@ namespace IbnElgm3a.Controllers.Instructors
                 }
             }
 
-            var totalWeeks = course.Semester.TotalWeeks == 0 ? 14 : course.Semester.TotalWeeks;
+            var totalWeeks = course.Semester != null
+                ? (course.Semester.TotalWeeks == 0 ? 14 : course.Semester.TotalWeeks)
+                : 14;
 
             return Ok(new
             {
                 id = course.Id,
                 code = course.CourseCode,
                 name = course.Title,
-                semester = course.Semester.Name,
+                semester = course.Semester?.Name ?? "",
                 week_current = currentWeek,
                 week_total = totalWeeks,
                 student_count = studentCount,
                 status = "active",
-                schedule_summary = schedule.FirstOrDefault()?.day_of_week + " " + schedule.FirstOrDefault()?.start_time,
+                schedule_summary = schedule.Any() ? $"{schedule.First().day_of_week} {schedule.First().start_time}" : "",
                 progress_percent = totalWeeks > 0 ? (int)((double)currentWeek / totalWeeks * 100) : 0,
                 pending_submissions_count = pendingSubmissions,
                 overview = new
@@ -318,33 +313,27 @@ namespace IbnElgm3a.Controllers.Instructors
         [HttpGet("{course_id}/roster")]
         public async Task<IActionResult> GetRoster(string course_id, [FromQuery] RosterRiskStatus? risk_status, [FromQuery] int page = 1, [FromQuery] int limit = 50)
         {
-            // Fetch all needed data in two parallel queries
-            var enrollmentsTask = _context.Enrollments
+            // Sequential queries to avoid EF Core DbContext concurrency exceptions
+            var enrollments = await _context.Enrollments
                 .AsNoTracking()
                 .Where(e => e.Section!.CourseId == course_id && e.Status == EnrollmentStatus.Enrolled)
                 .Select(e => new
                 {
-                    StudentId = e.Student!.Id,
-                    AcademicNumber = e.Student.AcademicNumber,
-                    UserName = e.Student.User != null ? e.Student.User.Name : ""
+                    StudentId = e.Student != null ? e.Student.Id : "",
+                    AcademicNumber = e.Student != null ? e.Student.AcademicNumber : "",
+                    UserName = (e.Student != null && e.Student.User != null) ? e.Student.User.Name : ""
                 })
                 .ToListAsync();
 
-            var completedSessionsCountTask = _context.Sessions
+            var completedSessionsCount = await _context.Sessions
                 .AsNoTracking()
                 .CountAsync(s => s.Section!.CourseId == course_id && s.AttendanceStatus == "completed");
 
-            var attendanceRecordsTask = _context.AttendanceRecords
+            var attendanceRecords = await _context.AttendanceRecords
                 .AsNoTracking()
                 .Where(a => a.Session!.Section!.CourseId == course_id && a.Session.AttendanceStatus == "completed")
                 .Select(a => new { a.StudentId, a.Status })
                 .ToListAsync();
-
-            await Task.WhenAll(enrollmentsTask, completedSessionsCountTask, attendanceRecordsTask);
-
-            var enrollments = enrollmentsTask.Result;
-            var completedSessionsCount = completedSessionsCountTask.Result;
-            var attendanceRecords = attendanceRecordsTask.Result;
 
             var students = enrollments.Select(e =>
             {
@@ -354,15 +343,32 @@ namespace IbnElgm3a.Controllers.Instructors
                 var attendanceRate = completedSessionsCount > 0 ? (float)presentCount / completedSessionsCount : 1.0f;
                 var riskStatus = attendanceRate >= 0.75f ? "good" : (attendanceRate >= 0.60f ? "watch" : "at_risk");
 
-                var nameParts = e.UserName.Split(' ');
+                var userName = e.UserName ?? "";
+                var nameParts = userName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                var firstName = nameParts.Length > 0 ? nameParts[0] : "";
+                var lastName = nameParts.Length > 1 ? string.Join(" ", nameParts.Skip(1)) : "";
+                var initials = "";
+                if (firstName.Length > 0)
+                {
+                    initials += firstName.Substring(0, 1).ToUpper();
+                }
+                if (lastName.Length > 0)
+                {
+                    var lastPart = nameParts.Length > 1 ? nameParts[1] : "";
+                    if (lastPart.Length > 0)
+                    {
+                        initials += lastPart.Substring(0, 1).ToUpper();
+                    }
+                }
+
                 return new
                 {
                     id = e.StudentId,
                     student_number = e.AcademicNumber,
-                    first_name = nameParts[0],
-                    last_name = nameParts.Length > 1 ? nameParts[1] : "",
-                    full_name = e.UserName,
-                    initials = e.UserName.Length > 0 ? e.UserName.Substring(0, 1) + (nameParts.Length > 1 && nameParts[1].Length > 0 ? nameParts[1].Substring(0, 1) : "") : "",
+                    first_name = firstName,
+                    last_name = lastName,
+                    full_name = userName,
+                    initials = initials,
                     attendance_rate = attendanceRate,
                     risk_status = riskStatus
                 };
