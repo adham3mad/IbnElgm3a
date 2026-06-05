@@ -29,12 +29,24 @@ namespace IbnElgm3a.Controllers.Common
         private const string UidRegexPattern = @"^([0-9A-F]{2}:)*[0-9A-F]{2}$";
 
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, Channel<object>> _subscribers = new();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, (string SessionId, string RoomId, string SectionId, Channel<object> Channel)> _roomSubscribers = new();
 
         private static void NotifyCardScanned(object cardDetails)
         {
             foreach (var channel in _subscribers.Values)
             {
                 channel.Writer.TryWrite(cardDetails);
+            }
+        }
+
+        private static void NotifyRoomEntry(string roomId, string studentId, string sectionId)
+        {
+            foreach (var sub in _roomSubscribers.Values)
+            {
+                if (sub.RoomId == roomId && sub.SectionId == sectionId)
+                {
+                    sub.Channel.Writer.TryWrite(new { student_id = studentId });
+                }
             }
         }
 
@@ -410,6 +422,8 @@ namespace IbnElgm3a.Controllers.Common
             await LogAuditAsync(request.Uid, request.DeviceId, "/attendance/room", 200, "granted");
             await _context.SaveChangesAsync();
 
+            NotifyRoomEntry(room.Id, student.Id, activeSectionId);
+
             return Ok(new
             {
                 allowed = true,
@@ -576,6 +590,90 @@ namespace IbnElgm3a.Controllers.Common
                 .ToListAsync();
 
             return Ok(new { cards, studentCount, students, rooms });
+        }
+
+        [HttpGet("attendance/room/stream")]
+        [Authorize(Roles = "instructor")]
+        public async Task GetRoomStream(
+            [FromQuery(Name = "session_id")] string sessionId,
+            [FromQuery(Name = "room_id")] string roomId,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(roomId))
+            {
+                Response.StatusCode = 400;
+                Response.ContentType = "application/json";
+                await Response.WriteAsync("{\"error\":\"session_id and room_id are required.\"}");
+                return;
+            }
+
+            var room = await _context.Rooms
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.Id == roomId);
+
+            if (room == null)
+            {
+                Response.StatusCode = 404;
+                Response.ContentType = "application/json";
+                await Response.WriteAsync("{\"error\":\"Room not found.\"}");
+                return;
+            }
+
+            var session = await _context.Sessions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == sessionId);
+
+            if (session == null)
+            {
+                Response.StatusCode = 404;
+                Response.ContentType = "application/json";
+                await Response.WriteAsync("{\"error\":\"Session not found.\"}");
+                return;
+            }
+
+            Response.ContentType = "text/event-stream";
+            Response.Headers["Cache-Control"] = "no-cache";
+            Response.Headers["Connection"] = "keep-alive";
+
+            // Write initial connection success message
+            await Response.WriteAsync("data: {\"status\":\"connected\"}\n\n", cancellationToken);
+            await Response.Body.FlushAsync(cancellationToken);
+
+            var subscriptionId = Guid.NewGuid();
+            var channel = Channel.CreateUnbounded<object>();
+            _roomSubscribers[subscriptionId] = (sessionId, room.Id, session.SectionId, channel);
+
+            try
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    var readTask = channel.Reader.ReadAsync(cancellationToken).AsTask();
+                    var delayTask = Task.Delay(5000, cancellationToken);
+
+                    var completedTask = await Task.WhenAny(readTask, delayTask);
+                    if (completedTask == readTask)
+                    {
+                        var data = await readTask;
+                        var json = System.Text.Json.JsonSerializer.Serialize(data);
+                        await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
+                        await Response.Body.FlushAsync(cancellationToken);
+                    }
+                    else
+                    {
+                        // Heartbeat
+                        await Response.WriteAsync(":\n\n", cancellationToken);
+                        await Response.Body.FlushAsync(cancellationToken);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Disconnection expected
+            }
+            finally
+            {
+                _roomSubscribers.TryRemove(subscriptionId, out _);
+            }
         }
 
         [HttpGet("admin/card/stream")]
