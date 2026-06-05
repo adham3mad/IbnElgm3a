@@ -456,20 +456,6 @@ namespace IbnElgm3a.Controllers.Common
 
             if (isEnroll)
             {
-                // Check if card already exists
-                var existingCard = await _context.Cards.AsNoTracking().AnyAsync(c => c.Uid == request.Uid);
-                if (existingCard)
-                {
-                    await LogAuditAsync(request.Uid, request.DeviceId, "/admin/card", 409, "denied");
-                    return Conflict(new 
-                    { 
-                        allowed = false, 
-                        message = _localizer.GetMessage("NFC_UID_ALREADY_ENROLLED_MSG"), 
-                        sub = _localizer.GetMessage("NFC_UID_ALREADY_ENROLLED_SUB"), 
-                        error = _localizer.GetMessage("NFC_UID_ALREADY_ENROLLED_ERR") 
-                    });
-                }
-
                 // Create new active card
                 var newCard = new Card
                 {
