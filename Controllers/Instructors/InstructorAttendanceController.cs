@@ -112,7 +112,10 @@ namespace IbnElgm3a.Controllers.Instructors
             var instructor = await _context.Instructors.AsNoTracking().FirstOrDefaultAsync(i => i.UserId == userId);
             if (instructor == null) return Unauthorized();
 
-            var session = await _context.Sessions.AsNoTracking().Include(s => s.Section).FirstOrDefaultAsync(s => s.Id == session_id);
+            var session = await _context.Sessions.AsNoTracking()
+                .Include(s => s.Section)
+                .Include(s => s.ScheduleSlot)
+                .FirstOrDefaultAsync(s => s.Id == session_id);
             if (session == null) return NotFound();
 
             if (session.Section?.InstructorId != instructor.Id) return Forbid();
@@ -158,6 +161,14 @@ namespace IbnElgm3a.Controllers.Instructors
             var excusedCount = roster.Count(r => r.status == "excused");
             var unrecordedCount = roster.Count(r => r.status == null);
 
+            var roomId = session.ScheduleSlot?.RoomId;
+            if (string.IsNullOrEmpty(roomId) && !string.IsNullOrEmpty(session.RoomName))
+            {
+                var room = await _context.Rooms.AsNoTracking()
+                    .FirstOrDefaultAsync(r => r.Name == session.RoomName || r.Code == session.RoomName);
+                roomId = room?.Id;
+            }
+
             var responseObj = new
             {
                 session = new
@@ -170,6 +181,7 @@ namespace IbnElgm3a.Controllers.Instructors
                     start_time = session.StartTime,
                     end_time = session.EndTime,
                     room = session.RoomName,
+                    room_id = roomId,
                     attendance_status = session.AttendanceStatus
                 },
                 records = roster,
