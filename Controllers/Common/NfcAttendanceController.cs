@@ -721,7 +721,7 @@ namespace IbnElgm3a.Controllers.Common
         }
 
         [HttpGet("admin/card/stream")]
-        [AllowAnonymous]
+        [RequirePermission(PermissionEnum.manage_cards)]
         public async Task GetCardStream(CancellationToken cancellationToken)
         {
             Response.ContentType = "text/event-stream";
