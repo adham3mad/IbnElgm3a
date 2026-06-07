@@ -470,6 +470,45 @@ namespace IbnElgm3a.Controllers.Common
 
             if (isEnroll)
             {
+                // Check if card with Uid already exists in the database
+                var existingCard = await _context.Cards
+                    .FirstOrDefaultAsync(c => c.Uid == request.Uid);
+
+                if (existingCard != null)
+                {
+                    await LogAuditAsync(request.Uid, request.DeviceId, "/admin/card", 200, "granted");
+
+                    // Fetch student name if linked
+                    string? studentName = null;
+                    if (existingCard.StudentId != null)
+                    {
+                        studentName = await _context.Students
+                            .AsNoTracking()
+                            .Where(s => s.Id == existingCard.StudentId)
+                            .Select(s => s.User != null ? s.User.Name : null)
+                            .FirstOrDefaultAsync();
+                    }
+
+                    // Notify UI of the card scan
+                    NotifyCardScanned(new
+                    {
+                        Id = existingCard.Id,
+                        Uid = existingCard.Uid,
+                        Status = existingCard.Status,
+                        StudentId = existingCard.StudentId,
+                        StudentName = studentName,
+                        DeviceId = request.DeviceId,
+                        ScannedAt = DateTimeOffset.UtcNow
+                    });
+
+                    return Ok(new
+                    {
+                        allowed = true,
+                        message = _localizer.GetMessage("NFC_CARD_ENROLLED_MSG"),
+                        sub = _localizer.GetMessage("NFC_CARD_ENROLLED_SUB")
+                    });
+                }
+
                 // Create new active card
                 var newCard = new Card
                 {
@@ -643,17 +682,22 @@ namespace IbnElgm3a.Controllers.Common
             var channel = Channel.CreateUnbounded<object>();
             _roomSubscribers[subscriptionId] = (sessionId, room.Id, session.SectionId, channel);
 
+            Task<object>? readTask = null;
             try
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    var readTask = channel.Reader.ReadAsync(cancellationToken).AsTask();
+                    if (readTask == null)
+                    {
+                        readTask = channel.Reader.ReadAsync(cancellationToken).AsTask();
+                    }
                     var delayTask = Task.Delay(5000, cancellationToken);
 
                     var completedTask = await Task.WhenAny(readTask, delayTask);
                     if (completedTask == readTask)
                     {
                         var data = await readTask;
+                        readTask = null; // Reset for next iteration
                         var json = System.Text.Json.JsonSerializer.Serialize(data);
                         await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
                         await Response.Body.FlushAsync(cancellationToken);
@@ -677,7 +721,7 @@ namespace IbnElgm3a.Controllers.Common
         }
 
         [HttpGet("admin/card/stream")]
-        [RequirePermission(PermissionEnum.manage_cards)]
+        [AllowAnonymous]
         public async Task GetCardStream(CancellationToken cancellationToken)
         {
             Response.ContentType = "text/event-stream";
@@ -692,17 +736,22 @@ namespace IbnElgm3a.Controllers.Common
             var channel = Channel.CreateUnbounded<object>();
             _subscribers[subscriptionId] = channel;
 
+            Task<object>? readTask = null;
             try
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    var readTask = channel.Reader.ReadAsync(cancellationToken).AsTask();
+                    if (readTask == null)
+                    {
+                        readTask = channel.Reader.ReadAsync(cancellationToken).AsTask();
+                    }
                     var delayTask = Task.Delay(5000, cancellationToken);
 
                     var completedTask = await Task.WhenAny(readTask, delayTask);
                     if (completedTask == readTask)
                     {
                         var cardDetails = await readTask;
+                        readTask = null; // Reset for next iteration
                         var json = System.Text.Json.JsonSerializer.Serialize(cardDetails);
                         await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
                         await Response.Body.FlushAsync(cancellationToken);
