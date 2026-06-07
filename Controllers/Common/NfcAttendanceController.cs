@@ -257,7 +257,6 @@ namespace IbnElgm3a.Controllers.Common
 
             // Find most recent open campus session for today
             var openSession = await _context.CampusSessions
-                .AsNoTracking()
                 .OrderByDescending(cs => cs.EntryTime)
                 .FirstOrDefaultAsync(cs => cs.StudentId == student.Id && cs.ExitTime == null && cs.EntryTime.Date == today);
 
@@ -319,10 +318,9 @@ namespace IbnElgm3a.Controllers.Common
             }
 
             // 2. Room lookup
-            var roomIdStr = request.RoomId.ToString();
             var room = await _context.Rooms
                 .AsNoTracking()
-                .FirstOrDefaultAsync(r => r.Code == roomIdStr || r.Id == roomIdStr);
+                .FirstOrDefaultAsync(r => r.Id == request.RoomId);
 
             if (room == null)
             {
@@ -544,24 +542,27 @@ namespace IbnElgm3a.Controllers.Common
             }
             else if ("deactivate".Equals(request.Action, StringComparison.OrdinalIgnoreCase))
             {
-                // Card is retrieved during ValidateScanAsync
-                card!.Status = "inactive";
-                card.UpdatedAt = DateTimeOffset.UtcNow;
-
-                await LogAuditAsync(request.Uid, request.DeviceId, "/admin/card", 200, "granted");
-                await _context.SaveChangesAsync();
-
-                // Notify UI of deactivated card status
-                NotifyCardScanned(new
+                var dbCard = await _context.Cards.FirstOrDefaultAsync(c => c.Uid == request.Uid);
+                if (dbCard != null)
                 {
-                    Id = card.Id,
-                    Uid = card.Uid,
-                    Status = card.Status,
-                    StudentId = card.StudentId,
-                    StudentName = card.Student != null && card.Student.User != null ? card.Student.User.Name : null,
-                    DeviceId = request.DeviceId,
-                    ScannedAt = DateTimeOffset.UtcNow
-                });
+                    dbCard.Status = "inactive";
+                    dbCard.UpdatedAt = DateTimeOffset.UtcNow;
+
+                    await LogAuditAsync(request.Uid, request.DeviceId, "/admin/card", 200, "granted");
+                    await _context.SaveChangesAsync();
+
+                    // Notify UI of deactivated card status
+                    NotifyCardScanned(new
+                    {
+                        Id = dbCard.Id,
+                        Uid = dbCard.Uid,
+                        Status = dbCard.Status,
+                        StudentId = dbCard.StudentId,
+                        StudentName = card.Student != null && card.Student.User != null ? card.Student.User.Name : null,
+                        DeviceId = request.DeviceId,
+                        ScannedAt = DateTimeOffset.UtcNow
+                    });
+                }
 
                 return Ok(new
                 {
